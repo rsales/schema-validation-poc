@@ -22,6 +22,7 @@ export class AjvPageValidator {
     const ajv = new Ajv2020({
       allErrors: true,
       strict: true,
+      discriminator: true,
     })
 
     const jsonSchema = buildJsonSchema(schema)
@@ -52,15 +53,38 @@ export class AjvPageValidator {
     errors: ErrorObject[],
     page: PageNode,
   ): ValidationError[] {
-    return errors.map((error) => {
-      const path = this.resolvePath(error)
-      const code = this.resolveCode(error, page)
+    return errors.flatMap((error) => {
+      if (this.isUnknownComponentError(error, page)) {
+        const node = this.getNodeAtPath(
+          page,
+          error.instancePath,
+        )
 
-      return {
-        path,
-        code,
-        message: this.resolveMessage(error, page),
+        if (!node) {
+          return []
+        }
+
+        return [
+          {
+            path: error.instancePath,
+            code: 'CHILD_NOT_ALLOWED',
+            message: `Child component "${node.type}" is not allowed here.`,
+          },
+          {
+            path: `${error.instancePath}/type`,
+            code: 'UNKNOWN_COMPONENT',
+            message: `Unknown component type "${node.type}".`,
+          },
+        ]
       }
+
+      return [
+        {
+          path: this.resolvePath(error),
+          code: this.resolveCode(error, page),
+          message: this.resolveMessage(error, page),
+        },
+      ]
     })
   }
 
@@ -72,18 +96,18 @@ export class AjvPageValidator {
           : undefined
 
       if (missingProperty) {
-        return `${error.instancePath}.${missingProperty}`
+        return `${error.instancePath}/${missingProperty}`
       }
     }
 
     if (error.keyword === 'additionalProperties') {
       const additionalProperty =
         typeof error.params?.additionalProperty === 'string'
-          ? error.params.additionalProperty
+          ? error.params?.additionalProperty
           : undefined
 
       if (additionalProperty) {
-        return `${error.instancePath}.${additionalProperty}`
+        return `${error.instancePath}/${additionalProperty}`
       }
     }
 
@@ -118,13 +142,13 @@ export class AjvPageValidator {
         return 'UNKNOWN_FIELD'
 
       case 'type':
-        return 'TYPE'
-
-      case 'const':
-        return 'TYPE'
+        return 'INVALID_TYPE'
 
       case 'enum':
-        return 'ENUM'
+        return 'INVALID_ENUM'
+
+      case 'const':
+        return 'INVALID_VALUE'
 
       case 'minLength':
         return 'MIN_LENGTH'
@@ -150,6 +174,9 @@ export class AjvPageValidator {
       case 'oneOf':
         return 'UNKNOWN_COMPONENT'
 
+      case 'discriminator':
+        return 'UNKNOWN_COMPONENT'
+
       default:
         return error.keyword.toUpperCase()
     }
@@ -165,54 +192,111 @@ export class AjvPageValidator {
         error.instancePath,
       )
 
-      if (
-        node &&
-        !this.schema.components[node.type]
-      ) {
+      if (!node) {
+        return 'Child component is not allowed.'
+      }
+
+      if (!this.schema.components[node.type]) {
         return `Unknown component "${node.type}".`
       }
 
-      return 'Child component is not allowed.'
+      return `Child component "${node.type}" is not allowed here.`
     }
 
     switch (error.keyword) {
       case 'required':
-        return `Missing required field "${error.params?.missingProperty}".`
+        return `Field "${error.params?.missingProperty}" is required.`
 
       case 'additionalProperties':
         return `Unknown field "${error.params?.additionalProperty}".`
 
-      case 'type':
-        return `Expected type "${error.params?.type}".`
+      case 'type': {
+        const field = this.getFieldName(error)
+        const type = error.params?.type
 
-      case 'const':
-        return `Value must equal "${error.params?.allowedValue}".`
+        if (field) {
+          return `Field "${field}" must be a ${type}.`
+        }
 
-      case 'enum':
-        return `Value must be one of: ${(
+        return `Value must be a ${type}.`
+      }
+
+      case 'enum': {
+        const field = this.getFieldName(error)
+
+        const values = (
           error.params?.allowedValues ?? []
-        ).join(', ')}.`
+        ).join(', ')
 
-      case 'minLength':
-        return `String must contain at least ${error.params?.limit} characters.`
+        if (field) {
+          return `Field "${field}" must be one of: ${values}.`
+        }
 
-      case 'maxLength':
-        return `String must contain at most ${error.params?.limit} characters.`
+        return `Value must be one of: ${values}.`
+      }
 
-      case 'pattern':
+      case 'minLength': {
+        const field = this.getFieldName(error)
+        const limit = error.params?.limit
+
+        if (field) {
+          return `Field "${field}" must have at least ${limit} characters.`
+        }
+
+        return `String must contain at least ${limit} characters.`
+      }
+
+      case 'maxLength': {
+        const field = this.getFieldName(error)
+        const limit = error.params?.limit
+
+        if (field) {
+          return `Field "${field}" must have at most ${limit} characters.`
+        }
+
+        return `String must contain at most ${limit} characters.`
+      }
+
+      case 'pattern': {
+        const field = this.getFieldName(error)
+
+        if (field) {
+          return `Field "${field}" does not match the required pattern.`
+        }
+
         return 'String does not match the required pattern.'
+      }
 
-      case 'minimum':
-        return `Number must be greater than or equal to ${error.params?.comparison}.`
+      case 'minimum': {
+        const field = this.getFieldName(error)
+        const limit = error.params?.limit
 
-      case 'maximum':
-        return `Number must be less than or equal to ${error.params?.comparison}.`
+        if (field) {
+          return `Field "${field}" must be greater than or equal to ${limit}.`
+        }
+
+        return `Number must be greater than or equal to ${limit}.`
+      }
+
+      case 'maximum': {
+        const field = this.getFieldName(error)
+        const limit = error.params?.limit
+
+        if (field) {
+          return `Field "${field}" must be less than or equal to ${limit}.`
+        }
+
+        return `Number must be less than or equal to ${limit}.`
+      }
 
       case 'minItems':
-        return `Component must contain at least ${error.params?.limit} children.`
+        return `Component must have at least ${error.params?.limit} children.`
 
       case 'maxItems':
-        return `Component must contain at most ${error.params?.limit} children.`
+        return `Component must have at most ${error.params?.limit} children.`
+
+      case 'discriminator':
+        return 'Component type is not allowed.'
 
       case 'oneOf':
         return 'Component type is not allowed.'
@@ -222,11 +306,49 @@ export class AjvPageValidator {
     }
   }
 
+  private getFieldName(
+    error: ErrorObject,
+  ): string | undefined {
+    const segments = error.instancePath
+      .split('/')
+      .filter(Boolean)
+
+    const fieldsIndex = segments.indexOf('fields')
+
+    if (fieldsIndex === -1) {
+      return undefined
+    }
+
+    return segments[fieldsIndex + 1]
+  }
+
+  private isUnknownComponentError(
+    error: ErrorObject,
+    page: PageNode,
+  ): boolean {
+    if (
+      error.keyword !== 'discriminator' &&
+      error.keyword !== 'oneOf'
+    ) {
+      return false
+    }
+
+    const node = this.getNodeAtPath(
+      page,
+      error.instancePath,
+    )
+
+    return !!node && !this.schema.components[node.type]
+  }
+
   private isChildCompositionError(
     error: ErrorObject,
   ): boolean {
     return (
-      error.keyword === 'oneOf' &&
+      (
+        error.keyword === 'oneOf' ||
+        error.keyword === 'discriminator'
+      ) &&
       this.isChildrenPath(error.instancePath)
     )
   }

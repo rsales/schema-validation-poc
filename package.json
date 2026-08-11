@@ -11,6 +11,7 @@
     "wasm:test": "tsx src/wasm-test.ts",
     "test:page-engine": "tsx --test page-engine/tests/validator.test.ts",
     "test:page-engine:ajv": "tsx --test page-engine/ajv/tests/validator.test.ts",
+    "test:page-engine:parity": "tsx --test page-engine/tests/parity.test.ts",
     "build": "tsc"
   },
   "keywords": [],

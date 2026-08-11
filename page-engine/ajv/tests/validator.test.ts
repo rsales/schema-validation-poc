@@ -126,14 +126,14 @@ describe('Page Engine AJV Validator', () => {
     test('rejects an invalid field type', () => {
       assertInvalid(
         'invalid/invalid-type.json',
-        'TYPE',
+        'INVALID_TYPE',
       )
     })
 
     test('rejects an invalid enum value', () => {
       assertInvalid(
         'invalid/invalid-enum.json',
-        'ENUM',
+        'INVALID_ENUM',
       )
     })
   })

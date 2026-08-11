@@ -95,6 +95,12 @@ function buildChildrenSchema(
     type: 'array',
 
     items: {
+      type: 'object',
+
+      discriminator: {
+        propertyName: 'type',
+      },
+
       oneOf: allowedChildren.map((childName) => ({
         $ref: `#/$defs/${childName}`,
       })),
