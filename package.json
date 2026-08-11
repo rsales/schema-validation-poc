@@ -10,6 +10,7 @@
     "benchmark:wasm": "tsx src/benchmark-wasm.ts",
     "wasm:test": "tsx src/wasm-test.ts",
     "test:page-engine": "tsx --test page-engine/tests/validator.test.ts",
+    "test:page-engine:ajv": "tsx --test page-engine/ajv/tests/validator.test.ts",
     "build": "tsc"
   },
   "keywords": [],
