@@ -21,12 +21,15 @@ function fieldToJsonSchema(
     case 'string':
       return {
         type: 'string',
+
         ...(field.minLength !== undefined && {
           minLength: field.minLength,
         }),
+
         ...(field.maxLength !== undefined && {
           maxLength: field.maxLength,
         }),
+
         ...(field.pattern !== undefined && {
           pattern: field.pattern,
         }),
@@ -35,9 +38,11 @@ function fieldToJsonSchema(
     case 'number':
       return {
         type: 'number',
+
         ...(field.minimum !== undefined && {
           minimum: field.minimum,
         }),
+
         ...(field.maximum !== undefined && {
           maximum: field.maximum,
         }),
@@ -45,6 +50,7 @@ function fieldToJsonSchema(
 
     case 'enum':
       return {
+        type: 'string',
         enum: field.values,
       }
 
@@ -64,7 +70,8 @@ function buildFieldsSchema(
   for (const [fieldName, field] of Object.entries(
     component.fields,
   )) {
-    properties[fieldName] = fieldToJsonSchema(field)
+    properties[fieldName] =
+      fieldToJsonSchema(field)
 
     if (field.required) {
       required.push(fieldName)
@@ -73,45 +80,92 @@ function buildFieldsSchema(
 
   return {
     type: 'object',
+
     properties,
+
     ...(required.length > 0 && {
       required,
     }),
+
     additionalProperties: false,
   }
 }
 
 function buildChildrenSchema(
   allowedChildren: string[],
+  minChildren: number,
+  maxChildren: number,
 ): Record<string, unknown> {
-  if (allowedChildren.length === 0) {
-    return {
-      type: 'array',
-      items: false,
-    }
+  const childSchema: Record<string, unknown> = {
+    type: 'object',
+
+    properties: {
+      type: {
+        enum: allowedChildren,
+      },
+    },
+
+    required: ['type'],
+
+    allOf: [
+      {
+        $ref: '#/$defs/node',
+      },
+    ],
   }
 
   return {
     type: 'array',
 
-    items: {
-      type: 'object',
+    items:
+      allowedChildren.length > 0
+        ? childSchema
+        : false,
 
-      discriminator: {
-        propertyName: 'type',
+    minItems: minChildren,
+    maxItems: maxChildren,
+  }
+}
+
+function buildComponentConstraints(
+  componentName: string,
+  component: ComponentDefinition,
+): Record<string, unknown> {
+  return {
+    if: {
+      properties: {
+        type: {
+          const: componentName,
+        },
       },
 
-      oneOf: allowedChildren.map((childName) => ({
-        $ref: `#/$defs/${childName}`,
-      })),
+      required: ['type'],
+    },
+
+    then: {
+      properties: {
+        type: {
+          const: componentName,
+        },
+
+        fields: buildFieldsSchema(component),
+
+        children: buildChildrenSchema(
+          component.allowedChildren,
+          component.minChildren,
+          component.maxChildren,
+        ),
+      },
     },
   }
 }
 
-function componentToJsonSchema(
-  name: string,
-  component: ComponentDefinition,
+function buildNodeSchema(
+  schema: ComponentSchema,
 ): Record<string, unknown> {
+  const componentNames =
+    Object.keys(schema.components)
+
   return {
     type: 'object',
 
@@ -121,18 +175,16 @@ function componentToJsonSchema(
       },
 
       type: {
-        const: name,
+        type: 'string',
+        enum: componentNames,
       },
 
-      fields: buildFieldsSchema(component),
+      fields: {
+        type: 'object',
+      },
 
       children: {
-        ...buildChildrenSchema(
-          component.allowedChildren,
-        ),
-
-        minItems: component.minChildren,
-        maxItems: component.maxChildren,
+        type: 'array',
       },
     },
 
@@ -144,24 +196,20 @@ function componentToJsonSchema(
     ],
 
     additionalProperties: false,
+
+    allOf: componentNames.map(
+      (componentName) =>
+        buildComponentConstraints(
+          componentName,
+          schema.components[componentName],
+        ),
+    ),
   }
 }
 
 export function buildJsonSchema(
   schema: ComponentSchema,
 ): JsonSchema {
-  const definitions: Record<string, unknown> = {}
-
-  for (const [name, component] of Object.entries(
-    schema.components,
-  )) {
-    definitions[name] =
-      componentToJsonSchema(
-        name,
-        component,
-      )
-  }
-
   const page = schema.components.page
 
   if (!page) {
@@ -170,11 +218,16 @@ export function buildJsonSchema(
     )
   }
 
+  const nodeSchema =
+    buildNodeSchema(schema)
+
   return {
     $schema:
       'https://json-schema.org/draft/2020-12/schema',
 
-    $defs: definitions,
+    $defs: {
+      node: nodeSchema,
+    },
 
     type: 'object',
 
@@ -189,14 +242,11 @@ export function buildJsonSchema(
 
       fields: buildFieldsSchema(page),
 
-      children: {
-        ...buildChildrenSchema(
-          page.allowedChildren,
-        ),
-
-        minItems: page.minChildren,
-        maxItems: page.maxChildren,
-      },
+      children: buildChildrenSchema(
+        page.allowedChildren,
+        page.minChildren,
+        page.maxChildren,
+      ),
     },
 
     required: [

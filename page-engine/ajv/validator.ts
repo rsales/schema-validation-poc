@@ -22,7 +22,6 @@ export class AjvPageValidator {
     const ajv = new Ajv2020({
       allErrors: true,
       strict: true,
-      discriminator: true,
     })
 
     const jsonSchema = buildJsonSchema(schema)
@@ -40,12 +39,14 @@ export class AjvPageValidator {
       }
     }
 
+    const errors = this.mapErrors(
+      this.validate.errors ?? [],
+      page,
+    )
+
     return {
       valid: false,
-      errors: this.mapErrors(
-        this.validate.errors ?? [],
-        page,
-      ),
+      errors,
     }
   }
 
@@ -53,42 +54,258 @@ export class AjvPageValidator {
     errors: ErrorObject[],
     page: PageNode,
   ): ValidationError[] {
-    return errors.flatMap((error) => {
-      if (this.isUnknownComponentError(error, page)) {
-        const node = this.getNodeAtPath(
-          page,
-          error.instancePath,
-        )
+    /*
+     * The generated JSON Schema is intentionally an implementation
+     * detail. AJV can produce multiple low-level errors for a single
+     * semantic Page Engine error.
+     *
+     * Therefore we first resolve structural/component errors and then
+     * map the remaining field-level AJV errors.
+     */
 
-        if (!node) {
-          return []
-        }
+    const structuralErrors =
+      this.resolveStructuralErrors(page)
 
-        return [
-          {
-            path: error.instancePath,
-            code: 'CHILD_NOT_ALLOWED',
-            message: `Child component "${node.type}" is not allowed here.`,
-          },
-          {
-            path: `${error.instancePath}/type`,
-            code: 'UNKNOWN_COMPONENT',
-            message: `Unknown component type "${node.type}".`,
-          },
-        ]
-      }
+    if (structuralErrors.length > 0) {
+      return structuralErrors
+    }
 
-      return [
-        {
-          path: this.resolvePath(error),
-          code: this.resolveCode(error, page),
-          message: this.resolveMessage(error, page),
-        },
-      ]
-    })
+    return this.mapFieldErrors(errors)
   }
 
-  private resolvePath(error: ErrorObject): string {
+  /**
+   * Resolves the semantic component tree before exposing AJV's
+   * low-level errors.
+   *
+   * This prevents errors such as:
+   *
+   *   required
+   *   additionalProperties
+   *   const
+   *   false schema
+   *
+   * from different schema branches being reported together when
+   * the real problem is simply that a child component is invalid
+   * in its current position.
+   */
+  private resolveStructuralErrors(
+    page: PageNode,
+  ): ValidationError[] {
+    const errors: ValidationError[] = []
+
+    this.walkNode(
+      page,
+      '',
+      errors,
+    )
+
+    return errors
+  }
+
+  private walkNode(
+    node: PageNode,
+    path: string,
+    errors: ValidationError[],
+  ): void {
+    const component = this.schema.components[node.type]
+
+    /*
+     * Unknown component.
+     *
+     * This is intentionally resolved before checking fields/children.
+     * Otherwise AJV can report all fields from every possible schema
+     * branch.
+     */
+    if (!component) {
+      errors.push({
+        path: `${path}/type`,
+        code: 'UNKNOWN_COMPONENT',
+        message: `Unknown component type "${node.type}".`,
+      })
+
+      return
+    }
+
+    /*
+     * Check the component's own fields first.
+     *
+     * We only do this here for structural errors. Actual field
+     * constraints remain delegated to AJV.
+     */
+
+    const fields = node.fields ?? {}
+
+    for (const fieldName of Object.keys(fields)) {
+      if (!component.fields[fieldName]) {
+        errors.push({
+          path: `${path}/fields/${fieldName}`,
+          code: 'UNKNOWN_FIELD',
+          message: `Unknown field "${fieldName}".`,
+        })
+      }
+    }
+
+    /*
+     * Required fields.
+     *
+     * AJV also reports these, but handling them here gives us a
+     * deterministic semantic error and prevents unrelated schema
+     * branches from leaking into the result.
+     */
+    for (const [
+      fieldName,
+      field,
+    ] of Object.entries(component.fields)) {
+      if (
+        field.required &&
+        !(fieldName in fields)
+      ) {
+        errors.push({
+          path: `${path}/fields/${fieldName}`,
+          code: 'REQUIRED',
+          message: `Field "${fieldName}" is required.`,
+        })
+      }
+    }
+
+    /*
+     * Children constraints.
+     */
+    const children = node.children ?? []
+
+    if (
+      component.minChildren !== undefined &&
+      children.length < component.minChildren
+    ) {
+      errors.push({
+        path: `${path}/children`,
+        code: 'MIN_CHILDREN',
+        message: `Component must have at least ${component.minChildren} children.`,
+      })
+    }
+
+    if (
+      component.maxChildren !== undefined &&
+      children.length > component.maxChildren
+    ) {
+      errors.push({
+        path: `${path}/children`,
+        code: 'MAX_CHILDREN',
+        message: `Component must have at most ${component.maxChildren} children.`,
+      })
+    }
+
+    /*
+     * Validate child composition.
+     *
+     * This is the important part for:
+     *
+     * child-not-allowed.json
+     */
+    for (
+      let index = 0;
+      index < children.length;
+      index++
+    ) {
+      const child = children[index]
+      const childPath = `${path}/children/${index}`
+
+      if (
+        !component.allowedChildren.includes(
+          child.type,
+        )
+      ) {
+        if (this.schema.components[child.type]) {
+          errors.push({
+            path: childPath,
+            code: 'CHILD_NOT_ALLOWED',
+            message: `Child component "${child.type}" is not allowed here.`,
+          })
+        } else {
+          errors.push({
+            path: childPath,
+            code: 'CHILD_NOT_ALLOWED',
+            message: `Child component "${child.type}" is not allowed here.`,
+          })
+
+          errors.push({
+            path: `${childPath}/type`,
+            code: 'UNKNOWN_COMPONENT',
+            message: `Unknown component type "${child.type}".`,
+          })
+        }
+
+        /*
+         * Do not recursively validate a child whose component type
+         * is not valid in this location.
+         *
+         * Otherwise we get noise from the child's schema such as
+         * required fields from completely unrelated components.
+         */
+        continue
+      }
+
+      /*
+       * The child is structurally valid in this location, so recurse.
+       */
+      this.walkNode(
+        child,
+        childPath,
+        errors,
+      )
+    }
+  }
+
+  /**
+   * Maps AJV errors that remain after structural resolution.
+   *
+   * At this point we expect field-level errors such as:
+   *
+   *   minLength
+   *   maxLength
+   *   pattern
+   *   minimum
+   *   maximum
+   *   enum
+   *   type
+   */
+  private mapFieldErrors(
+    errors: ErrorObject[],
+  ): ValidationError[] {
+    return errors
+      .filter((error) =>
+        this.isRelevantFieldError(error),
+      )
+      .map((error) => ({
+        path: this.resolvePath(error),
+        code: this.resolveCode(error),
+        message: this.resolveMessage(error),
+      }))
+  }
+
+  private isRelevantFieldError(
+    error: ErrorObject,
+  ): boolean {
+    switch (error.keyword) {
+      case 'required':
+      case 'additionalProperties':
+      case 'type':
+      case 'enum':
+      case 'minLength':
+      case 'maxLength':
+      case 'pattern':
+      case 'minimum':
+      case 'maximum':
+        return true
+
+      default:
+        return false
+    }
+  }
+
+  private resolvePath(
+    error: ErrorObject,
+  ): string {
     if (error.keyword === 'required') {
       const missingProperty =
         typeof error.params?.missingProperty === 'string'
@@ -100,10 +317,14 @@ export class AjvPageValidator {
       }
     }
 
-    if (error.keyword === 'additionalProperties') {
+    if (
+      error.keyword ===
+      'additionalProperties'
+    ) {
       const additionalProperty =
-        typeof error.params?.additionalProperty === 'string'
-          ? error.params?.additionalProperty
+        typeof error.params?.additionalProperty ===
+        'string'
+          ? error.params.additionalProperty
           : undefined
 
       if (additionalProperty) {
@@ -116,24 +337,7 @@ export class AjvPageValidator {
 
   private resolveCode(
     error: ErrorObject,
-    page: PageNode,
   ): string {
-    if (this.isChildCompositionError(error)) {
-      const node = this.getNodeAtPath(
-        page,
-        error.instancePath,
-      )
-
-      if (
-        node &&
-        !this.schema.components[node.type]
-      ) {
-        return 'UNKNOWN_COMPONENT'
-      }
-
-      return 'CHILD_NOT_ALLOWED'
-    }
-
     switch (error.keyword) {
       case 'required':
         return 'REQUIRED'
@@ -171,12 +375,6 @@ export class AjvPageValidator {
       case 'maxItems':
         return 'MAX_CHILDREN'
 
-      case 'oneOf':
-        return 'UNKNOWN_COMPONENT'
-
-      case 'discriminator':
-        return 'UNKNOWN_COMPONENT'
-
       default:
         return error.keyword.toUpperCase()
     }
@@ -184,25 +382,7 @@ export class AjvPageValidator {
 
   private resolveMessage(
     error: ErrorObject,
-    page: PageNode,
   ): string {
-    if (this.isChildCompositionError(error)) {
-      const node = this.getNodeAtPath(
-        page,
-        error.instancePath,
-      )
-
-      if (!node) {
-        return 'Child component is not allowed.'
-      }
-
-      if (!this.schema.components[node.type]) {
-        return `Unknown component "${node.type}".`
-      }
-
-      return `Child component "${node.type}" is not allowed here.`
-    }
-
     switch (error.keyword) {
       case 'required':
         return `Field "${error.params?.missingProperty}" is required.`
@@ -289,18 +469,6 @@ export class AjvPageValidator {
         return `Number must be less than or equal to ${limit}.`
       }
 
-      case 'minItems':
-        return `Component must have at least ${error.params?.limit} children.`
-
-      case 'maxItems':
-        return `Component must have at most ${error.params?.limit} children.`
-
-      case 'discriminator':
-        return 'Component type is not allowed.'
-
-      case 'oneOf':
-        return 'Component type is not allowed.'
-
       default:
         return error.message ?? 'Validation failed.'
     }
@@ -313,94 +481,14 @@ export class AjvPageValidator {
       .split('/')
       .filter(Boolean)
 
-    const fieldsIndex = segments.indexOf('fields')
+    const fieldsIndex =
+      segments.indexOf('fields')
 
     if (fieldsIndex === -1) {
       return undefined
     }
 
     return segments[fieldsIndex + 1]
-  }
-
-  private isUnknownComponentError(
-    error: ErrorObject,
-    page: PageNode,
-  ): boolean {
-    if (
-      error.keyword !== 'discriminator' &&
-      error.keyword !== 'oneOf'
-    ) {
-      return false
-    }
-
-    const node = this.getNodeAtPath(
-      page,
-      error.instancePath,
-    )
-
-    return !!node && !this.schema.components[node.type]
-  }
-
-  private isChildCompositionError(
-    error: ErrorObject,
-  ): boolean {
-    return (
-      (
-        error.keyword === 'oneOf' ||
-        error.keyword === 'discriminator'
-      ) &&
-      this.isChildrenPath(error.instancePath)
-    )
-  }
-
-  private isChildrenPath(
-    instancePath: string,
-  ): boolean {
-    return /\/children\/\d+$/.test(instancePath)
-  }
-
-  private getNodeAtPath(
-    page: PageNode,
-    instancePath: string,
-  ): PageNode | undefined {
-    if (!instancePath) {
-      return page
-    }
-
-    const segments = instancePath
-      .split('/')
-      .filter(Boolean)
-      .map((segment) =>
-        segment
-          .replace(/~1/g, '/')
-          .replace(/~0/g, '~'),
-      )
-
-    let current = page
-
-    for (let i = 0; i < segments.length; i++) {
-      const segment = segments[i]
-
-      if (segment !== 'children') {
-        return undefined
-      }
-
-      const index = Number(segments[++i])
-
-      if (!Number.isInteger(index)) {
-        return undefined
-      }
-
-      const child = current.children[index]
-
-      if (!child) {
-        return undefined
-      }
-
-      current = child
-    }
-
-    return current
   }
 }
 
@@ -414,7 +502,8 @@ export function validatePage(
   page: PageNode,
   schema: ComponentSchema,
 ): ValidationResult {
-  const validator = createAjvValidator(schema)
+  const validator =
+    createAjvValidator(schema)
 
   return validator.validatePage(page)
 }
