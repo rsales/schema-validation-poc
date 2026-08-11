@@ -1,108 +1,120 @@
-# Architecture
+# Schema Validation POC — Architecture
 
-## TypeScript / Ajv
+## Current architecture
 
 ```text
-JSON Schema
-    │
-    ▼
-  Ajv
-    │
-compile once
-    │
-    ▼
-Compiled Validator
-    │
-    ▼
-Page Object
-    │
-    ▼
-boolean
+                         Page JSON
+                            |
+                            v
+                     JSON Schema
+                            |
+              +-------------+-------------+
+              |             |             |
+              v             v             v
+            Node          Rust        Rust/WASM
+             AJV          Native          |
+              |             |             |
+              +-------------+-------------+
+                            |
+                         Result
+                    VALID / INVALID
 ```
 
-## Rust / WASM
+## Node.js / AJV
 
 ```text
-JSON Schema
-    │
-    ▼
- Rust/WASM
-    │
-validator_for()
-    │
-    ▼
-JSON Schema Validator
-    │
-    ▼
-Cached Page
-    │
-    ▼
-validate_cached()
-    │
-    ▼
- boolean
+Node.js
+   |
+   v
+AJV
+   |
+   v
+JSON Schema validation
 ```
 
-## Initialization vs Validation
+This is the simplest architecture when the CMS and backend are already Node.js-based.
 
-The schema is compiled once.
-
-The page is parsed once for pure-validation benchmarks.
+## Native Rust
 
 ```text
-Initialization
-──────────────
+Rust process
+    |
+    v
+jsonschema
+    |
+    v
+Page validation
+```
 
-Schema
-  ↓
-Validator
+The native implementation establishes the performance of the Rust validation engine without a WASM boundary.
 
+## Rust + WebAssembly
+
+```text
+Node.js
+   |
+   v
+wasm-bindgen
+   |
+   v
+WebAssembly
+   |
+   v
+Rust jsonschema
+   |
+   v
+Validation result
+```
+
+The generated bindings currently expose:
+
+```ts
+export function init_validator(schema_json: string): void;
+
+export function validate_page(page_json: string): boolean;
+```
+
+The schema is initialized once and the validator is reused.
+
+## Intended lifecycle
+
+```text
+Application startup
+       |
+       v
+Load schema
+       |
+       v
+Initialize validator
+       |
+       v
+Keep validator alive
+       |
+       v
+Validate pages
+```
+
+Schema compilation should not happen for every page.
+
+## Page Builder relevance
+
+```text
+CMS
+ |
+ v
 Page JSON
-  ↓
-serde_json
-  ↓
-Value
-
-Validation
-──────────
-
-Value
-  ↓
-Validator
-  ↓
-boolean
+ |
+ v
+Schema validation
+ |
+ +---- invalid --> reject
+ |
+ +---- valid ----> persist
+                       |
+                       v
+                    Client
 ```
 
-## End-to-End Path
+If everything is Node.js, AJV is likely the simplest solution.
 
-```text
-JavaScript Object
-       │
-       ▼
-JSON.stringify()
-       │
-       ▼
-WASM boundary
-       │
-       ▼
-serde_json
-       │
-       ▼
-JSON Schema validator
-       │
-       ▼
-boolean
-```
-
-## Why This Separation Matters
-
-If JSON parsing is included in the validation benchmark, the benchmark no longer measures only schema validation.
-
-Likewise, schema compilation should not be repeated for every validation.
-
-The intended lifecycle is:
-
-```text
-compile once
-validate many times
-```
+If validation must be shared between Node.js, Rails, and browser environments, a Rust core compiled to WASM becomes more compelling.

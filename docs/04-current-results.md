@@ -1,87 +1,108 @@
-# Current Results
+# Schema Validation POC — Current Results
 
-## Node.js / Ajv
+## Current status
 
-Current baseline:
+Working implementations exist for:
 
-| Fixture | Avg (μs) | Ops/sec |
-|---|---:|---:|
-| Small | 0.017 | 58.7M |
-| Medium | 0.263 | 3.80M |
-| Large | 2.572 | 388.8K |
-| Huge | 26.017 | 38.4K |
+- Node.js validation
+- Native Rust validation
+- Rust → WebAssembly compilation
+- `wasm-bindgen` bindings
+- Node/WASM validation
+- Native Rust benchmarking
+- Criterion validation-only benchmarking
 
-## Rust / WASM — JSON Parsing Included
+## WASM API
 
-Earlier measurements passed the JSON string directly into WASM for every validation.
+The generated module exposes:
 
-Approximate results:
+```ts
+export function init_validator(schema_json: string): void;
 
-| Fixture | Avg (μs) |
+export function validate_page(page_json: string): boolean;
+```
+
+Validation has been confirmed for both valid and invalid pages:
+
+```text
+Rust/WASM validation: true
+Rust/WASM validation: false
+```
+
+## Latest native Rust benchmark
+
+| Fixture | Size | Blocks | Avg/run | P95/run | Ops/sec |
+|---|---:|---:|---:|---:|---:|
+| Small | 0.35 KB | 2 | 17.600 ms | 29.096 ms | 5,681,978 |
+| Medium | 9.03 KB | 50 | 29.967 ms | 33.088 ms | 333,702 |
+| Large | 89.44 KB | 500 | 29.573 ms | 39.935 ms | 33,814 |
+| Huge | 899.63 KB | 5,000 | 29.457 ms | 33.581 ms | 3,395 |
+
+The average is the time for all iterations in a benchmark run, not the latency of one validation.
+
+## Earlier validation-only WASM benchmark
+
+Approximately:
+
+| Fixture | Ops/sec |
 |---|---:|
-| Small | 1.457 |
-| Medium | 29.589 |
-| Large | 289.337 |
-| Huge | 2880.799 |
+| Small | 5.88M |
+| Medium | 369K |
+| Large | 34.4K |
+| Huge | 3.4K |
 
-This showed that JSON parsing and the JavaScript/WASM data boundary can become significant.
+The WASM results were close to native Rust for the same validation-oriented workload.
 
-## Rust / WASM — Cached Validation
-
-The current benchmark parses the page once before measurement.
-
-| Fixture | Avg (μs) | Ops/sec |
-|---|---:|---:|
-| Small | 0.170 | 5.88M |
-| Medium | 2.708 | 369K |
-| Large | 29.031 | 34.4K |
-| Huge | 292.056 | 3.42K |
-
-## Comparison
-
-| Fixture | Ajv | Rust/WASM | Relative |
-|---|---:|---:|---:|
-| Small | 0.017 μs | 0.170 μs | ~10× slower |
-| Medium | 0.263 μs | 2.708 μs | ~10× slower |
-| Large | 2.572 μs | 29.031 μs | ~11× slower |
-| Huge | 26.017 μs | 292.056 μs | ~11× slower |
-
-## Interpretation
-
-The current results do not demonstrate a performance advantage for Rust/WASM.
-
-However, they also do not demonstrate that Rust itself is slower.
-
-The current comparison is:
+## Key observation
 
 ```text
-Ajv
-→ code-generated JavaScript
-→ V8
-
-vs.
-
-Rust jsonschema
-→ generic JSON Schema validator
-→ WASM
+Rust Native ≈ Rust/WASM
 ```
 
-The validator implementations are different.
+for pure validation.
 
-## Current Hypothesis
+The larger cost appears when the full Node.js → WASM → Rust path is included.
 
-The next experiment should compare:
+Therefore, the current evidence suggests that WebAssembly itself is not the primary problem; the integration boundary and surrounding runtime work are important contributors.
+
+## Architectural interpretation
+
+### Node.js-only
 
 ```text
-Ajv
-  vs
-Native Rust
-  vs
-Rust/WASM
+Node.js
+   |
+   v
+AJV
 ```
 
-If native Rust is significantly faster than WASM, the WASM runtime or boundary is an important factor.
+is currently the pragmatic choice because it avoids:
 
-If native Rust is similar to WASM, the main limitation is likely the validator implementation itself.
+- WASM boundary overhead
+- Rust build requirements
+- additional generated artifacts
+- cross-language debugging
+- additional deployment complexity
 
-The most important future experiment is a specialized/generated Rust validator.
+### Cross-runtime validation
+
+```text
+             Rust validator
+                   |
+             +-----+-----+
+             |           |
+           Native       WASM
+             |           |
+          Rails        Node
+                       Browser
+```
+
+becomes more compelling when one validation implementation must be reused across multiple runtimes.
+
+The primary benefit is portability and shared logic, not simply raw validation speed.
+
+## Current hypothesis
+
+> For a Node.js-only Page Builder or Headless CMS, AJV is likely the better engineering choice. Rust + WASM becomes valuable when validation logic must be shared across runtimes or environments.
+
+This hypothesis should be validated with the controlled Docker benchmark.

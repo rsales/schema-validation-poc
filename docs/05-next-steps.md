@@ -1,123 +1,197 @@
-# Next Steps
+# Schema Validation POC — Next Steps
 
-## 1. Native Rust Benchmark
+## Completed
 
-Implement the same validation benchmark using native Rust.
+- [x] Define Page JSON model
+- [x] Define JSON Schema
+- [x] Generate page fixtures
+- [x] Implement Node.js validation
+- [x] Implement Rust validation
+- [x] Compile Rust to WebAssembly
+- [x] Generate `wasm-bindgen` bindings
+- [x] Validate pages through WASM
+- [x] Add Node/WASM benchmark
+- [x] Add native Rust benchmark
+- [x] Add Criterion validation-only benchmark
+- [x] Run benchmarks on multiple Macs
+- [x] Document initial findings
 
-Goal:
+## Phase 1 — Controlled Docker benchmark
+
+Create a reproducible benchmark environment for:
 
 ```text
-Ajv
-  vs
-Native Rust
-  vs
-Rust/WASM
+Node + AJV
+Rust Native
+Rust + WASM
 ```
 
-This isolates WASM overhead.
+All implementations should use the same:
 
-## 2. WASM Boundary Benchmark
+- schema
+- fixtures
+- benchmark protocol
+- warmup strategy
+- number of runs
+- CPU limits
+- memory limits
 
-Measure repeated calls to an exported WASM function without JSON Schema validation.
+Proposed structure:
 
 ```text
-JavaScript
-    ↓
-WASM
-    ↓
-JavaScript
+benchmark/
+├── docker-compose.yml
+├── node/
+│   └── Dockerfile
+├── rust/
+│   └── Dockerfile
+└── runner/
 ```
 
-This provides a lower bound for WASM boundary cost.
+## Phase 2 — Separate the costs
 
-## 3. End-to-End Benchmark
+Measure these independently:
+
+```text
+1. Process startup
+2. Runtime startup
+3. Schema compilation
+4. JSON parsing
+5. Validation
+6. WASM boundary
+7. Total operation
+```
+
+This prevents integration overhead from being incorrectly attributed to the JSON Schema engine.
+
+## Phase 3 — Concurrency
+
+Test:
+
+```text
+1 worker
+2 workers
+4 workers
+8 workers
+```
 
 Measure:
 
-```text
-Page object
-    ↓
-JSON.stringify()
-    ↓
-WASM
-    ↓
-serde_json
-    ↓
-JSON Schema validation
-    ↓
+- throughput
+- latency
+- P95
+- P99
+- CPU
+- memory
+
+This is relevant to a CMS receiving many page updates simultaneously.
+
+## Phase 4 — Error reporting
+
+The current WASM API returns only:
+
+```ts
 boolean
 ```
 
-This represents a realistic integration scenario.
+A production-oriented API should eventually expose structured errors:
 
-## 4. Validator Optimization
-
-Investigate whether the current Rust JSON Schema implementation is the main bottleneck.
-
-Potential approaches:
-
-- specialized validators;
-- precompiled schemas;
-- generated Rust code;
-- reduced allocations;
-- direct structured data access.
-
-## 5. Schema-to-Code Generation
-
-The most interesting experiment is to generate Rust validation code from the JSON Schema.
-
-```text
-page.schema.json
-       │
-       ▼
- Code Generator
-       │
-       ▼
- validator.rs
-       │
-       ▼
- Rust Compiler
-       │
-       ▼
- WASM
+```ts
+interface ValidationResult {
+  valid: boolean
+  errors?: ValidationError[]
+}
 ```
 
-This mirrors the code-generation strategy used by Ajv.
+Potential error fields:
 
-## 6. WASM Optimization
+```text
+instance path
+schema path
+keyword
+message
+```
 
-After establishing a correct baseline, investigate:
+This is important for Page Builder editors because `true/false` alone is insufficient for actionable feedback.
 
-- Link Time Optimization (LTO);
-- `opt-level`;
-- `codegen-units`;
-- `wasm-opt`;
-- binary size;
-- allocator choices.
+## Phase 5 — API design
 
-Optimization should happen only after the baseline is stable.
+The current minimal API is:
 
-## 7. Browser Benchmark
+```text
+init_validator(schema_json)
+validate_page(page_json)
+```
 
-The current benchmark runs WASM under Node.js.
+A future API could support:
 
-A later experiment should run the same module inside a real browser.
+```text
+initialize
+validate
+validate_many
+get_errors
+version
+```
 
-Potential environments:
+The boundary should remain small and stable.
 
-- Chrome;
-- Safari;
-- Firefox.
+## Phase 6 — Code generation investigation
 
-## 8. Final Evaluation
+After the benchmark is stable, investigate whether schema-specific code generation changes the comparison.
 
-The final evaluation should answer:
+Potential candidates:
 
-1. Is WASM faster?
-2. If not, where is the overhead?
-3. Does native Rust outperform Ajv?
-4. Does generated Rust outperform Ajv?
-5. Does WASM become advantageous for larger documents?
-6. What is the cost of loading the WASM module?
-7. What is the WASM binary size?
-8. Does the performance improvement justify the architectural complexity?
+- AJV standalone/code generation
+- specialized Rust validation
+- precompiled schema representations
+
+Equivalent workloads must be compared.
+
+## Phase 7 — Architectural decision
+
+### Node + AJV
+
+Best fit when:
+
+```text
+CMS = Node
+Backend = Node
+```
+
+### Rust native
+
+Best fit when:
+
+```text
+Backend = Rust
+```
+
+### Rust + WASM
+
+Potentially best fit when:
+
+```text
+Backend = Rails
+CMS = Node
+Browser = validation
+```
+
+and a single validation implementation is desirable.
+
+## Final decision criteria
+
+Evaluate:
+
+- validation throughput
+- P95/P99 latency
+- startup cost
+- memory usage
+- WASM/binary size
+- build complexity
+- deployment complexity
+- debugging experience
+- error reporting
+- cross-runtime reuse
+- long-term maintenance
+
+Performance alone should not determine the architecture.

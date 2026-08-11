@@ -1,47 +1,29 @@
-# Project Overview
+# Schema Validation POC — Overview
 
 ## Purpose
 
-This project is a proof of concept designed to investigate JSON Schema validation performance across different execution environments.
+This proof of concept evaluates different approaches for validating Page Builder JSON documents against a JSON Schema.
 
-The original motivation is a page-builder architecture where page definitions are represented as JSON and need to be validated before being persisted or delivered to clients.
+The main question is whether a Rust-based validator compiled to WebAssembly provides enough practical benefit to justify the additional complexity when compared with a native JavaScript validator such as AJV.
 
-The experiment compares:
+The experiment also evaluates the same Rust validator in its native form to separate the validation engine's performance from the JavaScript/WASM boundary.
 
-- Node.js + TypeScript + Ajv
-- Rust + JSON Schema
-- Rust compiled to WebAssembly
+## Current approaches
 
-## Problem
+1. **Node.js + AJV**
+2. **Native Rust + `jsonschema`**
+3. **Rust + WebAssembly + `wasm-bindgen`**
 
-A page can contain a potentially large number of nested blocks.
+## Current conclusion
 
-Before the page can be persisted, the structure must be validated against a JSON Schema.
+The Rust validator is very fast when executed natively. The WebAssembly version is also close to native Rust for the validation workload.
 
-The main question is:
+However, when the complete Node.js → WASM → Rust path is measured, JavaScript/WASM integration overhead becomes significant.
 
-> Can Rust/WASM provide meaningful performance improvements for this validation workload?
+For a Node.js-only Page Builder or Headless CMS, AJV is therefore currently the more pragmatic option.
 
-## Experimental Approach
+Rust + WASM becomes more interesting when the same validation engine must be shared across runtimes such as Node.js, Ruby/Rails, or browser applications.
 
-The project deliberately separates:
+## Next direction
 
-1. Schema compilation.
-2. JSON parsing.
-3. JavaScript ↔ WASM communication.
-4. JSON Schema validation.
-5. End-to-end execution.
-
-This prevents one benchmark from hiding where the actual cost comes from.
-
-## Success Criteria
-
-The experiment does not assume that Rust/WASM will be faster.
-
-A successful experiment should identify:
-
-- where the time is spent;
-- whether WASM introduces meaningful overhead;
-- whether native Rust provides a faster validator;
-- whether specialized code generation changes the result;
-- at which document sizes each implementation becomes advantageous.
+The next experiment is a reproducible Docker-based benchmark comparing Node.js + AJV, native Rust, and Rust + WASM under the same benchmark conditions.

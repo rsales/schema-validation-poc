@@ -1,122 +1,149 @@
-# Benchmark Methodology
+# Schema Validation POC — Benchmark Methodology
 
-## Goals
+## Objective
 
-The benchmark compares validation latency and throughput across implementations.
+Compare:
 
-Primary metrics:
+- Node.js + AJV
+- Native Rust
+- Rust + WebAssembly
 
-- average latency;
-- P95 latency;
-- validations per second;
-- document size;
-- number of blocks.
+using Page Builder-like JSON documents.
 
 ## Fixtures
 
-| Fixture | Blocks | Approx. Size |
+| Fixture | Approx. size | Blocks |
 |---|---:|---:|
-| Small | 2 | 0.22 KB |
-| Medium | 50 | 6.16 KB |
-| Large | 500 | 60.86 KB |
-| Huge | 5,000 | 613.96 KB |
+| Small | ~0.35 KB | 2 |
+| Medium | ~9 KB | 50 |
+| Large | ~89 KB | 500 |
+| Huge | ~900 KB | 5,000 |
 
-## Warmup
+## Benchmark protocol
 
-Each fixture is warmed up before measurement.
+The current benchmark uses 50 measurement runs.
 
-This matters because Node.js runs inside V8 and may benefit from JIT optimization.
+Warmup and iteration counts are scaled by fixture size:
 
-The WASM benchmark is also warmed up before measurements.
-
-## Multiple Runs
-
-Each fixture is measured over 50 runs.
-
-Each run performs a number of validations appropriate to the fixture size.
-
-Smaller documents use more iterations while larger documents use fewer iterations.
+| Fixture | Warmup | Iterations |
+|---|---:|---:|
+| Small | 10,000 | 100,000 |
+| Medium | 10,000 | 10,000 |
+| Large | 1,000 | 1,000 |
+| Huge | 100 | 100 |
 
 ## Metrics
 
-### Average latency
+The benchmark reports:
 
-Average run duration divided by the number of validations performed in that run.
+- Average execution time
+- Average time per operation
+- P95 latency
+- Operations per second
+- Number of validations
 
-### P95
-
-The P95 value represents the 95th percentile of benchmark run durations.
-
-### Throughput
-
-```text
-validations
-───────────
-duration
-```
-
-expressed as validations per second.
-
-## Pure Validation Benchmark
-
-Excluded from the measurement loop:
-
-- schema compilation;
-- JSON serialization;
-- JSON parsing;
-- fixture generation.
-
-The page is initialized before timing starts.
-
-## WASM Boundary
-
-The current WASM pure-validation benchmark includes the cost of invoking the exported WASM function from JavaScript:
+The most useful throughput metric is:
 
 ```text
-JavaScript
-    ↓
-WASM function call
-    ↓
-Rust validator
-    ↓
-boolean
+operations / second
 ```
 
-A future benchmark will isolate the function-call overhead independently.
+because each run contains multiple validation iterations.
 
-## End-to-End Benchmark
+## Validation-only vs end-to-end
 
-A separate benchmark will measure:
+The POC now distinguishes:
+
+### Validation-only
+
+Input is already prepared and the benchmark focuses on the validator.
+
+### End-to-end
+
+Includes work such as:
 
 ```text
-Page object
-    ↓
-JSON.stringify()
-    ↓
-WASM boundary
-    ↓
-serde_json
-    ↓
-JSON Schema validation
-    ↓
-boolean
+JSON string
+   |
+   v
+runtime / binding
+   |
+   v
+JSON parsing
+   |
+   v
+schema validation
 ```
 
-## Native Rust Benchmark
+This distinction is particularly important for WASM because JavaScript ↔ WASM boundary costs can become measurable.
 
-The next benchmark will run the same Rust validation logic natively.
+## Native Rust / Criterion
 
-This separates Rust validator cost from WASM runtime/boundary cost.
+Criterion was added to measure the Rust validation operation directly.
 
-## Reproducibility
+Observed validation-only measurements were approximately:
 
-Benchmarks should ideally run:
+| Fixture | Typical time |
+|---|---:|
+| Small | ~166 ns |
+| Medium | ~3.05 µs |
+| Large | ~28.5 µs |
+| Huge | ~282.7 µs |
 
-- on the same machine;
-- with the same runtime versions;
-- with optimized Rust builds;
-- after a consistent warmup;
-- with the same fixtures;
-- with the same benchmark configuration.
+These results demonstrate that the Rust validation engine itself is much faster than the complete benchmark timings that include surrounding application work.
 
-Results should be treated as local measurements.
+## Benchmark noise
+
+Local runs showed occasional spikes such as 30–50 ms while normal runs were often around 15–30 ms.
+
+Potential causes include:
+
+- OS scheduling
+- background processes
+- CPU frequency changes
+- thermal/power management
+- runtime effects
+- virtualization
+
+Therefore, local results should be treated as comparative measurements rather than absolute hardware specifications.
+
+## Cross-machine testing
+
+The benchmark was executed on both a Mac mini and a MacBook Pro.
+
+The exact numbers differed, but the overall behavior was consistent:
+
+- Small pages are extremely fast.
+- Medium pages remain very fast.
+- Larger documents increasingly depend on the amount of data being traversed.
+- Native Rust and WASM remain in the same general performance class for validation-only workloads.
+- The complete WASM integration path can be substantially more expensive than pure validation.
+
+## Planned controlled benchmark
+
+The next methodology improvement is Docker.
+
+The objective is reproducibility, not claiming that Docker produces perfectly native hardware measurements.
+
+The controlled environment should fix:
+
+- Node.js version
+- Rust version
+- dependency versions
+- schema
+- fixtures
+- warmup
+- number of runs
+- CPU limits
+- memory limits
+
+The final benchmark should separately measure:
+
+```text
+Startup
+Schema compilation
+JSON parsing
+Validation
+JS ↔ WASM boundary
+Total operation
+```
