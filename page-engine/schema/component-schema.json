@@ -37,7 +37,13 @@
       "maxChildren": 4
     },
     "section": {
-      "fields": {},
+      "fields": {
+        "id": {
+          "type": "string",
+          "required": true,
+          "pattern": "^[a-z0-9-]+$"
+        }
+      },
       "allowedChildren": [
         "container",
         "grid"

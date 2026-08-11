@@ -1,0 +1,15 @@
+{
+  "id": "home",
+  "type": "page",
+  "fields": {},
+  "children": [
+    {
+      "id": "section-1",
+      "type": "section",
+      "fields": {
+        "id": "content-section"
+      },
+      "children": []
+    }
+  ]
+}

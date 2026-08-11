@@ -1,0 +1,17 @@
+{
+  "id": "home",
+  "type": "page",
+  "fields": {},
+  "children": [
+    {
+      "id": "hero-1",
+      "type": "hero",
+      "fields": {
+        "title": "Build better websites",
+        "alignment": "center",
+        "debug": true
+      },
+      "children": []
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "id": "home",
+  "type": "page",
+  "fields": {},
+  "children": [
+    {
+      "id": "section-1",
+      "type": "section",
+      "fields": {
+        "id": "Invalid Section!"
+      },
+      "children": [
+        {
+          "id": "container-1",
+          "type": "container",
+          "fields": {},
+          "children": []
+        }
+      ]
+    }
+  ]
+}

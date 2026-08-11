@@ -1,0 +1,16 @@
+{
+  "id": "home",
+  "type": "page",
+  "fields": {},
+  "children": [
+    {
+      "id": "hero-1",
+      "type": "hero",
+      "fields": {
+        "title": "This title is intentionally much longer than the maximum allowed length of eighty characters for a hero title field",
+        "alignment": "center"
+      },
+      "children": []
+    }
+  ]
+}

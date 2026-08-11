@@ -1,0 +1,13 @@
+{
+  "id": "home",
+  "type": "page",
+  "fields": {},
+  "children": [
+    {
+      "id": "video-1",
+      "type": "video",
+      "fields": {},
+      "children": []
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "id": "home",
+  "type": "page",
+  "fields": {},
+  "children": [
+    {
+      "id": "section-1",
+      "type": "section",
+      "fields": {
+        "id": "content-section"
+      },
+      "children": [
+        {
+          "id": "grid-1",
+          "type": "grid",
+          "fields": {
+            "columns": 0
+          },
+          "children": [
+            {
+              "id": "card-1",
+              "type": "card",
+              "fields": {
+                "title": "Card"
+              },
+              "children": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,129 @@
+{
+  "id": "home",
+  "type": "page",
+  "fields": {},
+  "children": [
+    {
+      "id": "section-1",
+      "type": "section",
+      "fields": {
+        "id": "content-section"
+      },
+      "children": [
+        {
+          "id": "grid-1",
+          "type": "grid",
+          "fields": {
+            "columns": 12
+          },
+          "children": [
+            {
+              "id": "card-1",
+              "type": "card",
+              "fields": {
+                "title": "Card 1"
+              },
+              "children": []
+            },
+            {
+              "id": "card-2",
+              "type": "card",
+              "fields": {
+                "title": "Card 2"
+              },
+              "children": []
+            },
+            {
+              "id": "card-3",
+              "type": "card",
+              "fields": {
+                "title": "Card 3"
+              },
+              "children": []
+            },
+            {
+              "id": "card-4",
+              "type": "card",
+              "fields": {
+                "title": "Card 4"
+              },
+              "children": []
+            },
+            {
+              "id": "card-5",
+              "type": "card",
+              "fields": {
+                "title": "Card 5"
+              },
+              "children": []
+            },
+            {
+              "id": "card-6",
+              "type": "card",
+              "fields": {
+                "title": "Card 6"
+              },
+              "children": []
+            },
+            {
+              "id": "card-7",
+              "type": "card",
+              "fields": {
+                "title": "Card 7"
+              },
+              "children": []
+            },
+            {
+              "id": "card-8",
+              "type": "card",
+              "fields": {
+                "title": "Card 8"
+              },
+              "children": []
+            },
+            {
+              "id": "card-9",
+              "type": "card",
+              "fields": {
+                "title": "Card 9"
+              },
+              "children": []
+            },
+            {
+              "id": "card-10",
+              "type": "card",
+              "fields": {
+                "title": "Card 10"
+              },
+              "children": []
+            },
+            {
+              "id": "card-11",
+              "type": "card",
+              "fields": {
+                "title": "Card 11"
+              },
+              "children": []
+            },
+            {
+              "id": "card-12",
+              "type": "card",
+              "fields": {
+                "title": "Card 12"
+              },
+              "children": []
+            },
+            {
+              "id": "card-13",
+              "type": "card",
+              "fields": {
+                "title": "Card 13"
+              },
+              "children": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

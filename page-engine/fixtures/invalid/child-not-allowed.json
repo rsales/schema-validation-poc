@@ -1,0 +1,34 @@
+{
+  "id": "home",
+  "type": "page",
+  "fields": {},
+  "children": [
+    {
+      "id": "hero-1",
+      "type": "hero",
+      "fields": {
+        "title": "Build better websites",
+        "alignment": "center"
+      },
+      "children": [
+        {
+          "id": "grid-1",
+          "type": "grid",
+          "fields": {
+            "columns": 2
+          },
+          "children": [
+            {
+              "id": "card-1",
+              "type": "card",
+              "fields": {
+                "title": "Card"
+              },
+              "children": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

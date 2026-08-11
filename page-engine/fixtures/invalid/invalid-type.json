@@ -1,0 +1,16 @@
+{
+  "id": "home",
+  "type": "page",
+  "fields": {},
+  "children": [
+    {
+      "id": "hero-1",
+      "type": "hero",
+      "fields": {
+        "title": 12345,
+        "alignment": "center"
+      },
+      "children": []
+    }
+  ]
+}
