@@ -1,0 +1,22 @@
+{
+  "id": "page-001",
+  "slug": "/home",
+  "title": "Home",
+  "blocks": [
+    {
+      "id": "hero-001",
+      "type": "hero",
+      "content": {
+        "title": "Welcome",
+        "description": "Welcome to our website"
+      }
+    },
+    {
+      "id": "text-001",
+      "type": "text",
+      "content": {
+        "text": "Hello world"
+      }
+    }
+  ]
+}

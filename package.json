@@ -1,0 +1,26 @@
+{
+  "name": "schema-validation-poc",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "tsx src/ts/validator.ts",
+    "generate:fixtures": "tsx src/generate-fixtures.ts",
+    "benchmark": "tsx src/benchmark.ts",
+    "benchmark:wasm": "tsx src/benchmark-wasm.ts",
+    "wasm:test": "tsx src/wasm-test.ts",
+    "build": "tsc"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "ajv": "^8.20.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "tsx": "^4.23.12",
+    "typescript": "^5.9.3"
+  }
+}
