@@ -1,0 +1,177 @@
+{
+  "components": {
+    "page": {
+      "fields": {},
+      "allowedChildren": [
+        "hero",
+        "section"
+      ],
+      "minChildren": 1,
+      "maxChildren": 20
+    },
+    "hero": {
+      "fields": {
+        "title": {
+          "type": "string",
+          "required": true,
+          "minLength": 5,
+          "maxLength": 80
+        },
+        "alignment": {
+          "type": "enum",
+          "required": true,
+          "values": [
+            "left",
+            "center",
+            "right"
+          ]
+        }
+      },
+      "allowedChildren": [
+        "heading",
+        "text",
+        "image",
+        "button"
+      ],
+      "minChildren": 0,
+      "maxChildren": 4
+    },
+    "section": {
+      "fields": {},
+      "allowedChildren": [
+        "container",
+        "grid"
+      ],
+      "minChildren": 1,
+      "maxChildren": 4
+    },
+    "container": {
+      "fields": {},
+      "allowedChildren": [
+        "heading",
+        "text",
+        "image",
+        "button",
+        "grid"
+      ],
+      "minChildren": 0,
+      "maxChildren": 20
+    },
+    "grid": {
+      "fields": {
+        "columns": {
+          "type": "number",
+          "required": true,
+          "minimum": 1,
+          "maximum": 12
+        },
+        "gap": {
+          "type": "number",
+          "required": false,
+          "minimum": 0,
+          "maximum": 100
+        }
+      },
+      "allowedChildren": [
+        "card"
+      ],
+      "minChildren": 1,
+      "maxChildren": 12
+    },
+    "card": {
+      "fields": {
+        "title": {
+          "type": "string",
+          "required": true,
+          "minLength": 1,
+          "maxLength": 100
+        }
+      },
+      "allowedChildren": [
+        "image",
+        "heading",
+        "text",
+        "button"
+      ],
+      "minChildren": 0,
+      "maxChildren": 6
+    },
+    "heading": {
+      "fields": {
+        "text": {
+          "type": "string",
+          "required": true,
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "level": {
+          "type": "number",
+          "required": true,
+          "minimum": 1,
+          "maximum": 6
+        }
+      },
+      "allowedChildren": [],
+      "minChildren": 0,
+      "maxChildren": 0
+    },
+    "text": {
+      "fields": {
+        "content": {
+          "type": "string",
+          "required": true,
+          "minLength": 1,
+          "maxLength": 5000
+        }
+      },
+      "allowedChildren": [],
+      "minChildren": 0,
+      "maxChildren": 0
+    },
+    "image": {
+      "fields": {
+        "src": {
+          "type": "string",
+          "required": true,
+          "pattern": "^https://"
+        },
+        "alt": {
+          "type": "string",
+          "required": true,
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "allowedChildren": [],
+      "minChildren": 0,
+      "maxChildren": 0
+    },
+    "button": {
+      "fields": {
+        "label": {
+          "type": "string",
+          "required": true,
+          "minLength": 1,
+          "maxLength": 50
+        },
+        "url": {
+          "type": "string",
+          "required": true,
+          "pattern": "^https://"
+        },
+        "variant": {
+          "type": "enum",
+          "required": true,
+          "values": [
+            "primary",
+            "secondary",
+            "outline"
+          ]
+        }
+      },
+      "allowedChildren": [],
+      "minChildren": 0,
+      "maxChildren": 0
+    }
+  }
+}

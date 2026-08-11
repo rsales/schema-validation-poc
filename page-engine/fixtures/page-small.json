@@ -1,0 +1,44 @@
+{
+  "id": "home",
+  "type": "page",
+  "fields": {},
+  "children": [
+    {
+      "id": "hero-1",
+      "type": "hero",
+      "fields": {
+        "title": "Build better websites",
+        "alignment": "center"
+      },
+      "children": [
+        {
+          "id": "heading-1",
+          "type": "heading",
+          "fields": {
+            "text": "Build better websites",
+            "level": 1
+          },
+          "children": []
+        },
+        {
+          "id": "text-1",
+          "type": "text",
+          "fields": {
+            "content": "Create beautiful pages with a powerful visual editor."
+          },
+          "children": []
+        },
+        {
+          "id": "button-1",
+          "type": "button",
+          "fields": {
+            "label": "Get started",
+            "url": "https://example.com/get-started",
+            "variant": "primary"
+          },
+          "children": []
+        }
+      ]
+    }
+  ]
+}
