@@ -4,6 +4,14 @@ export {
   validatePage,
 } from './validator'
 
+export {
+  TypeScriptValidationEngine,
+} from './engine'
+
+export type {
+  ValidationEngine,
+} from './engine'
+
 export type {
   ComponentDefinition,
   ComponentSchema,
