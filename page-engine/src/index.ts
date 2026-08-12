@@ -1,3 +1,5 @@
+export { Page } from './page'
+
 export {
   validatePage,
 } from './validator'
