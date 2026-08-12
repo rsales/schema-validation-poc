@@ -1,197 +1,242 @@
-# Schema Validation POC — Next Steps
+# Schema Validation POC --- Next Steps
 
-## Completed
+## Current progress
 
-- [x] Define Page JSON model
-- [x] Define JSON Schema
-- [x] Generate page fixtures
-- [x] Implement Node.js validation
-- [x] Implement Rust validation
-- [x] Compile Rust to WebAssembly
-- [x] Generate `wasm-bindgen` bindings
-- [x] Validate pages through WASM
-- [x] Add Node/WASM benchmark
-- [x] Add native Rust benchmark
-- [x] Add Criterion validation-only benchmark
-- [x] Run benchmarks on multiple Macs
-- [x] Document initial findings
+### Completed
 
-## Phase 1 — Controlled Docker benchmark
+-   AJV performance benchmark
+-   Rust/WASM performance benchmark
+-   Native Rust benchmark
+-   Criterion validation-only benchmark
+-   Isolated AJV memory benchmark
+-   Memory metric definitions and process-isolation methodology
 
-Create a reproducible benchmark environment for:
+### In progress
 
-```text
-Node + AJV
-Rust Native
+-   Rust/WASM memory benchmark
+
+### Planned
+
+-   P99 latency
+-   CPU usage
+-   Startup time
+-   Artifact size
+-   Controlled Docker benchmark
+-   Final architectural analysis
+
+## 1. Complete Rust/WASM memory benchmark
+
+The Rust/WASM memory benchmark should use the same lifecycle and metrics
+as the AJV benchmark:
+
+``` text
+Process start
+     |
+     v
+Baseline RSS
+     |
+     v
+WASM module / validator initialization
+     |
+     v
+Validator RSS
+     |
+     v
+Fixture initialization
+     |
+     v
+Fixture RSS
+     |
+     v
+Warmup
+     |
+     v
+After Warmup
+     |
+     v
+Validation workload
+     |
+     v
+Peak RSS / Peak Heap
+     |
+     v
+Final
+```
+
+The goal is to make the AJV and Rust/WASM memory measurements directly
+comparable.
+
+## 2. Add P99 latency
+
+The current performance benchmark reports average latency and P95.
+
+P99 should be added to capture tail behavior:
+
+``` text
+Average
+P95
+P99
+```
+
+This is particularly useful for evaluating occasional runtime or
+boundary spikes.
+
+## 3. Measure CPU usage
+
+CPU consumption should be measured during the validation workload.
+
+The goal is to determine whether one implementation achieves similar
+throughput while requiring more or less CPU time.
+
+CPU measurements should be collected independently from the latency
+benchmark when possible to avoid measurement overhead affecting the
+timing results.
+
+## 4. Measure startup time
+
+Startup should be separated from steady-state validation:
+
+``` text
+Process start
+    |
+    v
+Runtime initialization
+    |
+    v
+Validator initialization
+    |
+    v
+Ready
+```
+
+For AJV, startup includes loading AJV and compiling the schema.
+
+For Rust/WASM, startup should include loading the generated WASM module
+and initializing the validator.
+
+## 5. Measure artifact size
+
+The WASM implementation should report:
+
+-   `.wasm` artifact size
+-   generated JavaScript binding size
+-   TypeScript declaration size, if relevant
+
+Compression can be reported separately if deployment size is important.
+
+## 6. Controlled Docker benchmark
+
+After the individual benchmarks are established, run the complete
+comparison in controlled Docker environments.
+
+The objective is reproducibility, not claiming perfectly deterministic
+hardware measurements.
+
+The environment should fix:
+
+-   Node.js version
+-   Rust version
+-   dependency versions
+-   schema
+-   fixtures
+-   warmup
+-   number of runs
+-   CPU limits
+-   memory limits
+
+The benchmark should compare:
+
+``` text
+Node.js + AJV
+Native Rust
 Rust + WASM
 ```
 
-All implementations should use the same:
+## 7. Separate benchmark dimensions
 
-- schema
-- fixtures
-- benchmark protocol
-- warmup strategy
-- number of runs
-- CPU limits
-- memory limits
+The final benchmark should distinguish:
 
-Proposed structure:
-
-```text
-benchmark/
-├── docker-compose.yml
-├── node/
-│   └── Dockerfile
-├── rust/
-│   └── Dockerfile
-└── runner/
+``` text
+Startup
+   |
+Schema compilation / initialization
+   |
+JSON parsing / preparation
+   |
+Validation
+   |
+JS ↔ WASM boundary
+   |
+Total operation
 ```
 
-## Phase 2 — Separate the costs
+This prevents a fast validation engine from being incorrectly
+interpreted as a fast end-to-end architecture.
 
-Measure these independently:
+## 8. Final comparison matrix
 
-```text
-1. Process startup
-2. Runtime startup
-3. Schema compilation
-4. JSON parsing
-5. Validation
-6. WASM boundary
-7. Total operation
+The final report should compare:
+
+  Metric                     Node + AJV   Native Rust   Rust + WASM
+  ------------------------ ------------ ------------- -------------
+  Throughput                                          
+  Average latency                                     
+  P95                                                 
+  P99                                                 
+  CPU usage                                           
+  Memory usage                                        
+  Startup time                                        
+  Artifact size                                       
+  Portability                                         
+  Integration complexity                              
+
+## 9. Architectural decision
+
+The final recommendation should not be based on throughput alone.
+
+The decision should consider:
+
+``` text
+Performance
+    +
+Memory
+    +
+CPU
+    +
+Startup
+    +
+Artifact size
+    +
+Integration complexity
+    +
+Runtime portability
 ```
 
-This prevents integration overhead from being incorrectly attributed to the JSON Schema engine.
+The expected outcome is one of:
 
-## Phase 3 — Concurrency
+### Option A --- AJV
 
-Test:
+Use AJV when the system is primarily Node.js-based and cross-runtime
+validation is not required.
 
-```text
-1 worker
-2 workers
-4 workers
-8 workers
-```
+### Option B --- Rust/WASM
 
-Measure:
+Use Rust/WASM when the same validation implementation must be shared
+across multiple runtimes or environments.
 
-- throughput
-- latency
-- P95
-- P99
-- CPU
-- memory
+### Option C --- Hybrid
 
-This is relevant to a CMS receiving many page updates simultaneously.
+Use Rust as the canonical validation core and expose it through native
+bindings or WASM depending on the consuming runtime.
 
-## Phase 4 — Error reporting
+## Current direction
 
-The current WASM API returns only:
+The current evidence favors AJV for a Node.js-only Page Builder /
+Headless CMS.
 
-```ts
-boolean
-```
+The Rust/WASM architecture remains strategically interesting when
+validation logic needs to be shared across Node.js, Rails, browsers, or
+other runtimes.
 
-A production-oriented API should eventually expose structured errors:
-
-```ts
-interface ValidationResult {
-  valid: boolean
-  errors?: ValidationError[]
-}
-```
-
-Potential error fields:
-
-```text
-instance path
-schema path
-keyword
-message
-```
-
-This is important for Page Builder editors because `true/false` alone is insufficient for actionable feedback.
-
-## Phase 5 — API design
-
-The current minimal API is:
-
-```text
-init_validator(schema_json)
-validate_page(page_json)
-```
-
-A future API could support:
-
-```text
-initialize
-validate
-validate_many
-get_errors
-version
-```
-
-The boundary should remain small and stable.
-
-## Phase 6 — Code generation investigation
-
-After the benchmark is stable, investigate whether schema-specific code generation changes the comparison.
-
-Potential candidates:
-
-- AJV standalone/code generation
-- specialized Rust validation
-- precompiled schema representations
-
-Equivalent workloads must be compared.
-
-## Phase 7 — Architectural decision
-
-### Node + AJV
-
-Best fit when:
-
-```text
-CMS = Node
-Backend = Node
-```
-
-### Rust native
-
-Best fit when:
-
-```text
-Backend = Rust
-```
-
-### Rust + WASM
-
-Potentially best fit when:
-
-```text
-Backend = Rails
-CMS = Node
-Browser = validation
-```
-
-and a single validation implementation is desirable.
-
-## Final decision criteria
-
-Evaluate:
-
-- validation throughput
-- P95/P99 latency
-- startup cost
-- memory usage
-- WASM/binary size
-- build complexity
-- deployment complexity
-- debugging experience
-- error reporting
-- cross-runtime reuse
-- long-term maintenance
-
-Performance alone should not determine the architecture.
+The next decisive evidence should come from the controlled benchmark and
+the remaining resource-usage measurements.
