@@ -1,14 +1,22 @@
 # Schema Validation POC
 
-A proof of concept for evaluating JSON Schema validation strategies for Page Builder and Headless CMS architectures.
+A proof of concept for evaluating JSON Schema validation strategies for
+Page Builder and Headless CMS architectures.
 
-The project compares **Node.js + AJV**, **native Rust**, and **Rust compiled to WebAssembly** to understand the trade-offs between performance, integration overhead, portability, and operational complexity.
+The project compares **Node.js + AJV**, **native Rust**, and **Rust
+compiled to WebAssembly** to understand the trade-offs between
+performance, memory usage, integration overhead, portability, and
+operational complexity.
 
 ## Research Question
 
-> Is Rust + WebAssembly a better validation strategy than a native JavaScript JSON Schema validator such as AJV for a Page Builder or Headless CMS?
+> Is Rust + WebAssembly a better validation strategy than a native
+> JavaScript JSON Schema validator such as AJV for a Page Builder or
+> Headless CMS?
 
-The POC intentionally evaluates the same validation engine in different execution environments so that the cost of the runtime and language boundary can be understood separately.
+The POC intentionally evaluates the same validation engine in different
+execution environments so that the cost of the runtime and language
+boundary can be understood separately.
 
 ## Implementations
 
@@ -16,7 +24,7 @@ The POC intentionally evaluates the same validation engine in different executio
 
 The JavaScript baseline.
 
-```text
+``` text
 Node.js
    |
    v
@@ -30,9 +38,10 @@ This represents the simplest architecture for a Node.js-based CMS.
 
 ### Native Rust
 
-The Rust implementation uses the [`jsonschema`](https://crates.io/crates/jsonschema) crate.
+The Rust implementation uses the
+[`jsonschema`](https://crates.io/crates/jsonschema) crate.
 
-```text
+``` text
 Rust
  |
  v
@@ -42,13 +51,15 @@ jsonschema
 Page validation
 ```
 
-This provides a baseline for the raw performance of the Rust validation engine.
+This provides a baseline for the raw performance of the Rust validation
+engine.
 
 ### Rust + WebAssembly
 
-The Rust validator is compiled to WebAssembly and exposed to Node.js through `wasm-bindgen`.
+The Rust validator is compiled to WebAssembly and exposed to Node.js
+through `wasm-bindgen`.
 
-```text
+``` text
 Node.js
    |
    v
@@ -66,72 +77,129 @@ jsonschema
 
 The generated API currently exposes:
 
-```ts
+``` ts
 export function init_validator(schema_json: string): void;
 
 export function validate_page(page_json: string): boolean;
 ```
 
-The schema is initialized once and the validator is reused for subsequent validations.
+The schema is initialized once and the validator is reused for
+subsequent validations.
 
 ## Current Findings
 
-The experiment has produced an important distinction between **validation performance** and **end-to-end integration performance**.
+The experiment has produced an important distinction between
+**validation performance**, **process memory usage**, and **end-to-end
+integration performance**.
 
-### Native Rust
+### Performance
 
-The Rust validation engine is extremely fast when measured directly.
+Native Rust and Rust/WASM are in the same general performance class for
+validation-oriented workloads.
 
-Criterion validation-only measurements are approximately:
-
-| Fixture | Typical validation time |
-|---|---:|
-| Small | ~166 ns |
-| Medium | ~3.05 μs |
-| Large | ~28.5 μs |
-| Huge | ~282.7 μs |
-
-### Rust + WASM
-
-Pure validation through the WASM implementation is in the same general performance class as native Rust.
-
-However, when the complete Node.js → WASM → Rust path is measured, additional runtime and boundary costs become significant.
-
-This means:
-
-```text
+``` text
 Pure validation:
 
 Native Rust ≈ Rust/WASM
 ```
 
-does not necessarily imply:
+However, when the complete Node.js → WASM → Rust path is measured,
+additional runtime and boundary costs become significant.
 
-```text
-Complete application:
+Therefore:
 
-Node + Rust/WASM > Node + AJV
+``` text
+Fast validation engine
+        ≠
+Fast end-to-end architecture
 ```
 
-The surrounding runtime and language boundary matter.
+The surrounding runtime, data preparation, serialization, and language
+boundary matter.
+
+### Memory
+
+Memory is measured independently from the performance benchmark.
+
+Each fixture runs in an isolated Node.js process, with measurements
+taken at defined lifecycle stages:
+
+``` text
+Process start
+     |
+     v
+Baseline RSS
+     |
+     v
+Validator initialization
+     |
+     v
+Validator RSS
+     |
+     v
+Fixture initialization
+     |
+     v
+Fixture RSS
+     |
+     v
+Warmup
+     |
+     v
+After Warmup
+     |
+     v
+Validation workload
+     |
+     v
+Peak RSS / Peak Heap
+     |
+     v
+Final
+```
+
+The primary process-level memory metric is **Peak RSS** and its delta
+from the process baseline.
+
+The benchmark also records:
+
+-   Baseline RSS
+-   Validator RSS
+-   Fixture RSS
+-   After Warmup
+-   Peak RSS
+-   Peak Heap
+-   RSS Delta
+-   Heap Delta
+
+RSS may include JavaScript heap, native allocations, runtime overhead,
+allocator behavior, and WebAssembly memory. Heap metrics therefore
+provide complementary context rather than replacing RSS.
+
+The initial AJV measurements indicate that validator initialization
+contributes a significant memory footprint, while the largest fixture
+produces a noticeably larger fixture-related memory increase.
+
+These are initial observations rather than final architectural
+conclusions; controlled repeated measurements are still required.
 
 ## Current Hypothesis
 
-For a **Node.js-only Page Builder or Headless CMS**, AJV is currently the most pragmatic choice.
+For a **Node.js-only Page Builder or Headless CMS**, AJV is currently
+the more pragmatic baseline because it avoids:
 
-It avoids:
+-   WASM boundary overhead
+-   Rust build requirements
+-   generated WASM artifacts
+-   cross-language debugging
+-   additional deployment complexity
 
-- WASM boundary overhead
-- Rust build requirements
-- generated WASM artifacts
-- cross-language debugging
-- additional deployment complexity
-
-Rust + WASM becomes considerably more interesting when the same validation implementation needs to be shared across different runtimes.
+Rust + WASM becomes considerably more interesting when the same
+validation implementation needs to be shared across different runtimes.
 
 For example:
 
-```text
+``` text
                  Rust validator
                        |
              +---------+---------+
@@ -141,20 +209,27 @@ For example:
         Ruby/Rails         Node.js / Browser
 ```
 
-A possible architecture could therefore use Rust as a shared validation core while exposing it through WASM to runtimes that cannot directly consume the Rust library.
+A possible architecture could therefore use Rust as a shared validation
+core while exposing it through WASM to runtimes that cannot directly
+consume the Rust library.
 
-The primary benefit in that scenario is **cross-runtime reuse**, rather than simply raw validation speed.
+The primary benefit in that scenario is **cross-runtime reuse**, rather
+than simply raw validation speed.
+
+This hypothesis remains subject to the controlled benchmark and the
+remaining measurements.
 
 ## Benchmark Fixtures
 
-The benchmark uses Page Builder-like JSON documents with different sizes:
+The benchmark uses Page Builder-like JSON documents with different
+sizes:
 
-| Fixture | Approx. size | Blocks |
-|---|---:|---:|
-| Small | ~0.35 KB | 2 |
-| Medium | ~9 KB | 50 |
-| Large | ~89 KB | 500 |
-| Huge | ~900 KB | 5,000 |
+  Fixture     Approx. size   Blocks
+  --------- -------------- --------
+  Small          \~0.35 KB        2
+  Medium            \~9 KB       50
+  Large            \~89 KB      500
+  Huge            \~900 KB    5,000
 
 Benchmark iterations are scaled according to fixture size.
 
@@ -164,86 +239,174 @@ The project currently contains several benchmark approaches.
 
 ### Node / WASM benchmark
 
-```bash
+``` bash
 npm run benchmark:wasm
 ```
 
-This measures the validation path from Node.js through the generated WASM bindings.
+This measures the validation path from Node.js through the generated
+WASM bindings.
 
 ### Native Rust benchmark
 
-```bash
-cargo run   --manifest-path rust/Cargo.toml   --release   --bin benchmark
+``` bash
+cargo run \
+  --manifest-path rust/Cargo.toml \
+  --release \
+  --bin benchmark
 ```
 
-This runs the custom benchmark directly against the native Rust implementation.
+This runs the custom benchmark directly against the native Rust
+implementation.
 
 ### Criterion benchmark
 
-```bash
-cargo bench   --manifest-path rust/Cargo.toml   --bench validation
+``` bash
+cargo bench \
+  --manifest-path rust/Cargo.toml \
+  --bench validation
 ```
 
-Criterion is used to isolate the validation operation itself and provide statistically robust measurements.
+Criterion is used to isolate the validation operation itself and provide
+statistically robust measurements.
+
+### AJV memory benchmark
+
+``` bash
+npx tsx src/benchmark-memory.ts
+```
+
+This runs the memory benchmark with each fixture in an isolated Node.js
+process.
+
+### Rust/WASM memory benchmark
+
+The Rust/WASM memory benchmark follows the same lifecycle and metrics as
+the AJV memory benchmark.
+
+It is currently being implemented so that the two approaches can be
+compared using the same methodology.
+
+## Memory Metrics
+
+### Baseline RSS
+
+Memory resident in the process before loading the validator.
+
+### Validator RSS
+
+Memory resident after the validator has been loaded and initialized.
+
+For AJV this includes the AJV runtime, schema, AJV instance, and
+compiled validator.
+
+For Rust/WASM this includes the WASM module, validator initialization,
+and schema initialization.
+
+### Fixture RSS
+
+Memory resident after the Page fixture has been loaded and initialized.
+
+### After Warmup
+
+Memory resident after the configured warmup validation phase.
+
+### Peak RSS
+
+The highest Resident Set Size observed during the benchmark.
+
+RSS represents process-level memory usage and may include:
+
+-   JavaScript heap
+-   native allocations
+-   runtime overhead
+-   allocator overhead
+-   WebAssembly memory
+
+### Peak Heap
+
+The highest JavaScript heap usage observed during the benchmark.
+
+### RSS Delta
+
+``` text
+Peak RSS - Baseline RSS
+```
+
+### Heap Delta
+
+``` text
+Peak Heap Used - Baseline Heap Used
+```
+
+Memory metrics should not be interpreted individually. RSS is the
+primary process-level metric, while heap usage provides additional
+context about JavaScript-managed memory.
 
 ## Running the Project
 
 ### Requirements
 
-- Node.js
-- npm
-- Rust
-- Cargo
-- `wasm-bindgen-cli`
-- `wasm32-unknown-unknown` Rust target
+-   Node.js
+-   npm
+-   Rust
+-   Cargo
+-   `wasm-bindgen-cli`
+-   `wasm32-unknown-unknown` Rust target
 
 ### Install dependencies
 
-```bash
+``` bash
 npm install
 ```
 
 ### Build Rust
 
-```bash
-cargo build   --manifest-path rust/Cargo.toml   --target wasm32-unknown-unknown   --release
+``` bash
+cargo build \
+  --manifest-path rust/Cargo.toml \
+  --target wasm32-unknown-unknown \
+  --release
 ```
 
 ### Generate WASM bindings
 
-```bash
+``` bash
 rm -rf rust/pkg
 
-wasm-bindgen   rust/target/wasm32-unknown-unknown/release/schema_validator.wasm   --out-dir rust/pkg   --target experimental-nodejs-module   --typescript
+wasm-bindgen \
+  rust/target/wasm32-unknown-unknown/release/schema_validator.wasm \
+  --out-dir rust/pkg \
+  --target experimental-nodejs-module \
+  --typescript
 ```
 
 ### Build TypeScript
 
-```bash
+``` bash
 npm run build
 ```
 
 ### Test WASM validation
 
-```bash
+``` bash
 npm run wasm:test
 ```
 
 Expected output includes:
 
-```text
+``` text
 Rust/WASM validation: true
 ```
 
 and invalid documents should return:
 
-```text
+``` text
 Rust/WASM validation: false
 ```
 
 ## Project Structure
 
-```text
+``` text
 schema-validation-poc/
 │
 ├── docs/
@@ -271,6 +434,10 @@ schema-validation-poc/
 ├── src/
 │   ├── benchmark.ts
 │   ├── benchmark-wasm.ts
+│   ├── benchmark-memory.ts
+│   ├── benchmark-memory-worker.ts
+│   ├── benchmark-memory-wasm.ts
+│   ├── benchmark-memory-wasm-worker.ts
 │   ├── generate-fixtures.ts
 │   ├── wasm-test.ts
 │   └── ts/
@@ -286,7 +453,7 @@ schema-validation-poc/
 
 The intended Page Builder flow is:
 
-```text
+``` text
 User edits Page
        |
        v
@@ -309,11 +476,12 @@ Validation
         Client
 ```
 
-The validation layer should prevent invalid Page JSON from being persisted or propagated to clients.
+The validation layer should prevent invalid Page JSON from being
+persisted or propagated to clients.
 
 In a multi-runtime architecture, the validation core could be shared:
 
-```text
+``` text
                     Page Schema
                          |
                          v
@@ -326,78 +494,168 @@ In a multi-runtime architecture, the validation core could be shared:
          WASM           WASM           WASM
 ```
 
-Whether this complexity is justified depends on the number of runtimes that actually need to share the validation logic.
+Whether this complexity is justified depends on the number of runtimes
+that actually need to share the validation logic.
 
-## Next Experiment: Controlled Docker Benchmark
+## Roadmap
 
-The next major step is to run the benchmark in controlled Docker environments.
+The benchmark work is being expanded in phases.
 
-The goal is not to claim that Docker makes benchmarks perfectly deterministic. The goal is to reduce environmental differences between implementations and make results easier to reproduce.
+### Phase 1 --- Controlled Docker benchmark
 
-The controlled benchmark should compare:
+Create a reproducible benchmark environment for:
 
-```text
-Node.js + AJV
-Native Rust
+``` text
+Node + AJV
+Rust Native
 Rust + WASM
 ```
 
-under the same:
+All implementations should use the same:
 
-- CPU constraints
-- memory constraints
-- runtime versions
-- dependency versions
-- fixtures
-- schema
-- warmup
-- number of runs
+-   schema
+-   fixtures
+-   benchmark protocol
+-   warmup strategy
+-   number of runs
+-   CPU limits
+-   memory limits
 
-The benchmark should also separate:
+### Phase 2 --- Separate the costs
 
-```text
-Startup
-   |
-Schema compilation
-   |
-JSON parsing
-   |
-Validation
-   |
-WASM boundary
-   |
-Total operation
+Measure these independently:
+
+``` text
+1. Process startup
+2. Runtime startup
+3. Schema compilation
+4. JSON parsing
+5. Validation
+6. WASM boundary
+7. Total operation
 ```
 
-Additional measurements should include:
+### Phase 3 --- Concurrency
 
-- throughput
-- average latency
-- P95
-- P99
-- CPU usage
-- memory usage
-- startup time
-- artifact size
+Test:
 
-This should provide a more reliable basis for the final architectural decision.
+``` text
+1 worker
+2 workers
+4 workers
+8 workers
+```
+
+Measure:
+
+-   throughput
+-   latency
+-   P95
+-   P99
+-   CPU
+-   memory
+
+### Phase 4 --- Error reporting
+
+The current WASM API returns only:
+
+``` ts
+boolean
+```
+
+A production-oriented API should eventually expose structured errors:
+
+``` ts
+interface ValidationResult {
+  valid: boolean
+  errors?: ValidationError[]
+}
+```
+
+Potential error fields:
+
+``` text
+instance path
+schema path
+keyword
+message
+```
+
+### Phase 5 --- API design
+
+The current minimal API is:
+
+``` text
+init_validator(schema_json)
+validate_page(page_json)
+```
+
+A future API could support:
+
+``` text
+initialize
+validate
+validate_many
+get_errors
+version
+```
+
+The boundary should remain small and stable.
+
+### Phase 6 --- Code generation investigation
+
+After the benchmark is stable, investigate whether schema-specific code
+generation changes the comparison.
+
+Potential candidates:
+
+-   AJV standalone/code generation
+-   specialized Rust validation
+-   precompiled schema representations
+
+Equivalent workloads must be compared.
+
+### Phase 7 --- Architectural decision
+
+The final decision should consider:
+
+-   validation throughput
+-   average latency
+-   P95/P99 latency
+-   CPU usage
+-   memory usage
+-   startup cost
+-   WASM/binary size
+-   build complexity
+-   deployment complexity
+-   debugging experience
+-   error reporting
+-   cross-runtime reuse
+-   long-term maintenance
+
+Performance alone should not determine the architecture.
 
 ## Documentation
 
 More detailed documentation is available in [`docs/`](./docs/):
 
-- [Overview](./docs/01-overview.md)
-- [Architecture](./docs/02-architecture.md)
-- [Benchmark Methodology](./docs/03-benchmark-methodology.md)
-- [Current Results](./docs/04-current-results.md)
-- [Next Steps](./docs/05-next-steps.md)
+-   [Overview](./docs/01-overview.md)
+-   [Architecture](./docs/02-architecture.md)
+-   [Benchmark Methodology](./docs/03-benchmark-methodology.md)
+-   [Current Results](./docs/04-current-results.md)
+-   [Next Steps](./docs/05-next-steps.md)
 
 ## Status
 
 This repository is an experimental POC.
 
-The current goal is **not** to produce a production-ready validation library. It is to gather enough technical and performance evidence to decide whether a Rust/WASM validation core makes architectural sense for Page Builder / Headless CMS scenarios.
+The current goal is **not** to produce a production-ready validation
+library. It is to gather enough technical and performance evidence to
+decide whether a Rust/WASM validation core makes architectural sense for
+Page Builder / Headless CMS scenarios.
 
----
+------------------------------------------------------------------------
 
-**Current direction:** establish a controlled Docker benchmark before making the final architectural recommendation.
+**Current direction:** complete the Rust/WASM memory benchmark, then
+establish a controlled Docker benchmark before making the final
+architectural recommendation.
