@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[derive(Debug, Deserialize)]
@@ -53,14 +53,14 @@ pub struct PageNode {
     pub children: Vec<PageNode>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ValidationError {
     pub path: String,
     pub code: String,
     pub message: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ValidationResult {
     pub valid: bool,
     pub errors: Vec<ValidationError>,
