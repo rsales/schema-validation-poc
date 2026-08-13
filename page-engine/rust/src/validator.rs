@@ -1,5 +1,6 @@
 use regex::Regex;
 use serde_json::Value;
+use crate::path::NodePath;
 use std::collections::HashMap;
 
 use crate::compiled::{
@@ -486,6 +487,55 @@ pub fn validate_page_compiled(
     }
 }
 
+pub fn validate_at(
+    page: &PageNode,
+    schema: &CompiledSchema,
+    path: &NodePath,
+) -> ValidationResult {
+    let mut errors = Vec::new();
+
+    let node = match path.get(page) {
+        Some(node) => node,
+
+        None => {
+            errors.push(ValidationError {
+                path: "$".into(),
+                code: "INVALID_PATH".into(),
+                message: "Node path does not exist.".into(),
+            });
+
+            return ValidationResult {
+                valid: false,
+                errors,
+            };
+        }
+    };
+
+    let json_path = path
+        .indexes
+        .iter()
+        .fold(
+            "$".to_string(),
+            |path, index| {
+                format!(
+                    "{path}.children[{index}]"
+                )
+            },
+        );
+
+    validate_compiled_node(
+        node,
+        schema,
+        &json_path,
+        &mut errors,
+    );
+
+    ValidationResult {
+        valid: errors.is_empty(),
+        errors,
+    }
+}
+
 fn validate_compiled_node(
     node: &PageNode,
     schema: &CompiledSchema,
@@ -910,4 +960,223 @@ fn validate_compiled_children(
             );
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        ComponentSchema,
+        CompiledSchema,
+        NodePath,
+        PageNode,
+    };
+    use std::fs;
+
+		fn load_schema() -> ComponentSchema {
+				let path = concat!(
+						env!("CARGO_MANIFEST_DIR"),
+						"/../schema/component-schema.json"
+				);
+
+				let schema =
+						fs::read_to_string(path)
+								.expect("failed to read schema");
+
+				serde_json::from_str(&schema)
+						.expect("failed to parse schema")
+		}
+
+		fn load_page() -> PageNode {
+				let path = concat!(
+						env!("CARGO_MANIFEST_DIR"),
+						"/../fixtures/page-small.json"
+				);
+
+				let page =
+						fs::read_to_string(path)
+								.expect("failed to read page");
+
+				serde_json::from_str(&page)
+						.expect("failed to parse page")
+		}
+
+    #[test]
+    fn validate_at_accepts_root() {
+        let schema =
+            load_schema();
+
+        let page =
+            load_page();
+
+        let compiled =
+            CompiledSchema::compile(
+                &schema,
+            )
+            .expect("failed to compile schema");
+
+        let path =
+            NodePath::root();
+
+        let full =
+            validate_page_compiled(
+                &page,
+                &compiled,
+            );
+
+        let partial =
+            validate_at(
+                &page,
+                &compiled,
+                &path,
+            );
+
+        assert_eq!(
+            partial.valid,
+            full.valid,
+        );
+
+        assert_eq!(
+            partial.errors.len(),
+            full.errors.len(),
+        );
+    }
+
+    #[test]
+    fn validate_at_accepts_existing_child() {
+        let schema =
+            load_schema();
+
+        let page =
+            load_page();
+
+        let compiled =
+            CompiledSchema::compile(
+                &schema,
+            )
+            .expect("failed to compile schema");
+
+        let path =
+            NodePath::from_indexes(
+                vec![0],
+            );
+
+        let result =
+            validate_at(
+                &page,
+                &compiled,
+                &path,
+            );
+
+        assert!(
+            result.valid,
+            "child should be valid: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn validate_at_rejects_invalid_path() {
+        let schema =
+            load_schema();
+
+        let page =
+            load_page();
+
+        let compiled =
+            CompiledSchema::compile(
+                &schema,
+            )
+            .expect("failed to compile schema");
+
+        let path =
+            NodePath::from_indexes(
+                vec![999],
+            );
+
+        let result =
+            validate_at(
+                &page,
+                &compiled,
+                &path,
+            );
+
+        assert!(
+            !result.valid
+        );
+
+        assert_eq!(
+            result.errors[0].code,
+            "INVALID_PATH",
+        );
+    }
+
+		#[test]
+		fn validate_at_preserves_global_error_path() {
+				let schema =
+						load_schema();
+
+				let mut page =
+						load_page();
+
+				let compiled =
+						CompiledSchema::compile(
+								&schema,
+						)
+						.expect("failed to compile schema");
+
+				/*
+				* Make heading-1 invalid.
+				*
+				* Original:
+				* $.children[0].children[0].fields.text
+				*
+				* The field has minLength = 1, so an empty
+				* string must produce MIN_LENGTH.
+				*/
+				page.children[0]
+						.children[0]
+						.fields
+						.insert(
+								"text".into(),
+								serde_json::Value::String(
+										String::new(),
+								),
+						);
+
+				let path =
+						NodePath::from_indexes(
+								vec![0],
+						);
+
+				let result =
+						validate_at(
+								&page,
+								&compiled,
+								&path,
+						);
+
+				assert!(
+						!result.valid,
+						"subtree should be invalid"
+				);
+
+				assert_eq!(
+						result.errors.len(),
+						1,
+				);
+
+				let error =
+						&result.errors[0];
+
+				assert_eq!(
+						error.code,
+						"MIN_LENGTH",
+				);
+
+				assert_eq!(
+						error.path,
+						"$.children[0].children[0].fields.text",
+				);
+		}
 }

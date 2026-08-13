@@ -1,0 +1,311 @@
+{
+  "id": "home",
+  "type": "page",
+  "fields": {},
+  "children": [
+    {
+      "id": "hero-1",
+      "type": "hero",
+      "fields": {
+        "title": "Build better websites",
+        "alignment": "center"
+      },
+      "children": [
+        {
+          "id": "heading-1",
+          "type": "heading",
+          "fields": {
+            "text": "Build better websites",
+            "level": 1
+          },
+          "children": []
+        },
+        {
+          "id": "text-1",
+          "type": "text",
+          "fields": {
+            "content": "Create beautiful pages with a powerful visual editor."
+          },
+          "children": []
+        },
+        {
+          "id": "button-1",
+          "type": "button",
+          "fields": {
+            "label": "Get started",
+            "url": "https://example.com/get-started",
+            "variant": "primary"
+          },
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "section-1",
+      "type": "section",
+      "fields": {
+        "id": "section-1"
+      },
+      "children": [
+        {
+          "id": "container-1",
+          "type": "container",
+          "fields": {},
+          "children": [
+            {
+              "id": "heading-2",
+              "type": "heading",
+              "fields": {
+                "text": "Our products",
+                "level": 2
+              },
+              "children": []
+            },
+            {
+              "id": "text-2",
+              "type": "text",
+              "fields": {
+                "content": "Explore our products and services."
+              },
+              "children": []
+            }
+          ]
+        },
+        {
+          "id": "grid-1",
+          "type": "grid",
+          "fields": {
+            "columns": 4,
+            "gap": 24
+          },
+          "children": [
+            {
+              "id": "card-1",
+              "type": "card",
+              "fields": {
+                "title": "Product One"
+              },
+              "children": [
+                {
+                  "id": "card-heading-1",
+                  "type": "heading",
+                  "fields": {
+                    "text": "Product One",
+                    "level": 3
+                  },
+                  "children": []
+                },
+                {
+                  "id": "card-text-1",
+                  "type": "text",
+                  "fields": {
+                    "content": "Description for product one."
+                  },
+                  "children": []
+                }
+              ]
+            },
+            {
+              "id": "card-2",
+              "type": "card",
+              "fields": {
+                "title": "Product Two"
+              },
+              "children": [
+                {
+                  "id": "card-heading-2",
+                  "type": "heading",
+                  "fields": {
+                    "text": "Product Two",
+                    "level": 3
+                  },
+                  "children": []
+                },
+                {
+                  "id": "card-text-2",
+                  "type": "text",
+                  "fields": {
+                    "content": "Description for product two."
+                  },
+                  "children": []
+                }
+              ]
+            },
+            {
+              "id": "card-3",
+              "type": "card",
+              "fields": {
+                "title": "Product Three"
+              },
+              "children": [
+                {
+                  "id": "card-heading-3",
+                  "type": "heading",
+                  "fields": {
+                    "text": "Product Three",
+                    "level": 3
+                  },
+                  "children": []
+                },
+                {
+                  "id": "card-text-3",
+                  "type": "text",
+                  "fields": {
+                    "content": "Description for product three."
+                  },
+                  "children": []
+                }
+              ]
+            },
+            {
+              "id": "card-4",
+              "type": "card",
+              "fields": {
+                "title": "Product Four"
+              },
+              "children": [
+                {
+                  "id": "card-heading-4",
+                  "type": "heading",
+                  "fields": {
+                    "text": "Product Four",
+                    "level": 3
+                  },
+                  "children": []
+                },
+                {
+                  "id": "card-text-4",
+                  "type": "text",
+                  "fields": {
+                    "content": "Description for product four."
+                  },
+                  "children": []
+                }
+              ]
+            },
+            {
+              "id": "card-5",
+              "type": "card",
+              "fields": {
+                "title": "Product Five"
+              },
+              "children": [
+                {
+                  "id": "card-heading-5",
+                  "type": "heading",
+                  "fields": {
+                    "text": "Product Five",
+                    "level": 3
+                  },
+                  "children": []
+                },
+                {
+                  "id": "card-text-5",
+                  "type": "text",
+                  "fields": {
+                    "content": "Description for product five."
+                  },
+                  "children": []
+                }
+              ]
+            },
+            {
+              "id": "card-6",
+              "type": "card",
+              "fields": {
+                "title": "Product Six"
+              },
+              "children": [
+                {
+                  "id": "card-heading-6",
+                  "type": "heading",
+                  "fields": {
+                    "text": "Product Six",
+                    "level": 3
+                  },
+                  "children": []
+                },
+                {
+                  "id": "card-text-6",
+                  "type": "text",
+                  "fields": {
+                    "content": "Description for product six."
+                  },
+                  "children": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "section-2",
+      "type": "section",
+      "fields": {
+        "id": "section-2"
+      },
+      "children": [
+        {
+          "id": "container-2",
+          "type": "container",
+          "fields": {},
+          "children": [
+            {
+              "id": "heading-3",
+              "type": "heading",
+              "fields": {
+                "text": "Features",
+                "level": 2
+              },
+              "children": []
+            },
+            {
+              "id": "text-3",
+              "type": "text",
+              "fields": {
+                "content": "Everything you need to build modern websites."
+              },
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "section-3",
+      "type": "section",
+      "fields": {
+        "id": "section-3"
+      },
+      "children": [
+        {
+          "id": "container-3",
+          "type": "container",
+          "fields": {},
+          "children": [
+            {
+              "id": "heading-4",
+              "type": "heading",
+              "fields": {
+                "text": "Get started today",
+                "level": 2
+              },
+              "children": []
+            },
+            {
+              "id": "button-2",
+              "type": "button",
+              "fields": {
+                "label": "Start now",
+                "url": "https://example.com/start",
+                "variant": "primary"
+              },
+              "children": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

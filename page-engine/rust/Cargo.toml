@@ -16,6 +16,14 @@ path = "src/main.rs"
 name = "benchmark"
 path = "src/benchmark.rs"
 
+[[bin]]
+name = "incremental-benchmark"
+path = "src/incremental_benchmark.rs"
+
+[[bin]]
+name = "scale-benchmark"
+path = "src/scale_benchmark.rs"
+
 [dependencies]
 regex = "1"
 serde = { version = "1", features = ["derive"] }
