@@ -1,11 +1,11 @@
 pub mod change;
-pub mod change_resolver;
 pub mod compiled;
+pub mod change_resolver;
 pub mod incremental;
 pub mod path;
-pub mod scope;
 pub mod types;
 pub mod validator;
+pub mod scope;
 
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;
@@ -19,6 +19,8 @@ pub use compiled::{
 };
 
 pub use change_resolver::affected_paths;
+
+pub use incremental::validate_incremental;
 
 pub use path::NodePath;
 

@@ -53,14 +53,14 @@ pub struct PageNode {
     pub children: Vec<PageNode>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct ValidationError {
     pub path: String,
     pub code: String,
     pub message: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct ValidationResult {
     pub valid: bool,
     pub errors: Vec<ValidationError>,

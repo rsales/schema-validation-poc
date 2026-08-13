@@ -1,5 +1,5 @@
 use crate::{
-    ComponentSchema,
+    CompiledSchema,
     NodePath,
     PageChange,
     PageNode,
@@ -7,7 +7,7 @@ use crate::{
 
 pub fn affected_scope(
     page: &PageNode,
-    schema: &ComponentSchema,
+    schema: &CompiledSchema,
     change: &PageChange,
 ) -> Vec<NodePath> {
     match change {
@@ -76,7 +76,7 @@ pub fn affected_scope(
 
 fn parent_has_structural_rules(
     page: &PageNode,
-    schema: &ComponentSchema,
+    schema: &CompiledSchema,
     path: &NodePath,
 ) -> bool {
     let Some(node) =
@@ -98,7 +98,7 @@ fn parent_has_structural_rules(
 
 fn structural_ancestors(
     page: &PageNode,
-    schema: &ComponentSchema,
+    schema: &CompiledSchema,
     path: &NodePath,
 ) -> Vec<NodePath> {
     if path.get(page).is_none() {
@@ -133,7 +133,7 @@ fn structural_ancestors(
 
 fn structural_scope(
     page: &PageNode,
-    schema: &ComponentSchema,
+    schema: &CompiledSchema,
     paths: Vec<NodePath>,
 ) -> Vec<NodePath> {
     let mut result =
@@ -163,6 +163,7 @@ fn structural_scope(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ComponentSchema;
 
     fn page() -> PageNode {
         serde_json::from_str(
@@ -268,10 +269,19 @@ mod tests {
         )
     }
 
+    fn compiled_schema() -> CompiledSchema {
+        let schema = schema();
+
+        CompiledSchema::compile(&schema)
+            .expect(
+                "failed to compile test schema",
+            )
+    }
+
     #[test]
     fn field_change_affects_only_node() {
         let page = page();
-        let schema = schema();
+        let schema = compiled_schema();
 
         let change =
             PageChange::field_changed(
@@ -300,7 +310,7 @@ mod tests {
     #[test]
     fn node_added_affects_structural_ancestors() {
         let page = page();
-        let schema = schema();
+        let schema = compiled_schema();
 
         let change =
             PageChange::node_added(
@@ -338,7 +348,7 @@ mod tests {
     #[test]
     fn node_removed_affects_structural_parent() {
         let page = page();
-        let schema = schema();
+        let schema = compiled_schema();
 
         let change =
             PageChange::node_removed(
@@ -373,7 +383,7 @@ mod tests {
     #[test]
     fn node_moved_affects_old_and_new_scope() {
         let page = page();
-        let schema = schema();
+        let schema = compiled_schema();
 
         let change =
             PageChange::node_moved(
@@ -417,7 +427,7 @@ mod tests {
     #[test]
     fn structural_ancestors_resolves_full_chain() {
         let page = page();
-        let schema = schema();
+        let schema = compiled_schema();
 
         let path =
             NodePath::from_indexes(
@@ -450,7 +460,7 @@ mod tests {
     #[test]
     fn structural_ancestors_stops_at_root() {
         let page = page();
-        let schema = schema();
+        let schema = compiled_schema();
 
         let path =
             NodePath::from_indexes(
@@ -472,7 +482,7 @@ mod tests {
     #[test]
     fn structural_ancestors_returns_empty_for_invalid_path() {
         let page = page();
-        let schema = schema();
+        let schema = compiled_schema();
 
         let path =
             NodePath::from_indexes(
@@ -511,7 +521,7 @@ mod tests {
                 "failed to parse test page",
             );
 
-        let schema = schema();
+        let schema = compiled_schema();
 
         let path =
             NodePath::from_indexes(
