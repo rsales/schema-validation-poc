@@ -1,39 +1,13 @@
 /* tslint:disable */
 /* eslint-disable */
 
-/**
- * Compiled WASM validator.
- *
- * The schema is parsed and compiled exactly once
- * when the validator is created.
- *
- * Subsequent calls only parse the page and execute
- * the compiled validation rules.
- */
 export class PageValidator {
     free(): void;
     [Symbol.dispose](): void;
-    /**
-     * Creates a compiled validator from a schema JSON.
-     *
-     * Schema parsing and regex compilation happen once.
-     */
     constructor(schema_json: string);
-    /**
-     * Validates a page using the compiled schema.
-     *
-     * The page is parsed on every call.
-     */
-    validate(page_json: string): string;
+    validate_data(page_json: string): string;
+    validate_many(page_json: string, iterations: number): boolean;
 }
-
-/**
- * Baseline WASM API.
- *
- * Compiles the schema and parses the page on every call.
- * Kept intentionally for benchmark comparison.
- */
-export function validate_page(schema_json: string, page_json: string): string;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
@@ -41,8 +15,8 @@ export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly __wbg_pagevalidator_free: (a: number, b: number) => void;
     readonly pagevalidator_new: (a: number, b: number) => [number, number, number];
-    readonly pagevalidator_validate: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly validate_page: (a: number, b: number, c: number, d: number) => [number, number, number, number];
+    readonly pagevalidator_validate_data: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly pagevalidator_validate_many: (a: number, b: number, c: number, d: number) => [number, number, number];
     readonly __wbindgen_externrefs: WebAssembly.Table;
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;

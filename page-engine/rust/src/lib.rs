@@ -5,13 +5,19 @@ pub mod validator;
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;
 
-pub use compiled::CompiledSchema;
+pub use compiled::{
+    CompiledComponentDefinition,
+    CompiledFieldDefinition,
+    CompiledSchema,
+};
 
 pub use types::{
     ComponentDefinition,
     ComponentSchema,
     FieldDefinition,
     PageNode,
+    ValidationError,
+    ValidationResult,
 };
 
 pub use validator::{
@@ -20,4 +26,4 @@ pub use validator::{
 };
 
 #[cfg(target_arch = "wasm32")]
-pub use wasm::validate_page as validate_page_wasm;
+pub use wasm::PageValidator;

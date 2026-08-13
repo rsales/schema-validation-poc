@@ -1,14 +1,5 @@
 /* @ts-self-types="./page_engine.d.ts" */
 
-/**
- * Compiled WASM validator.
- *
- * The schema is parsed and compiled exactly once
- * when the validator is created.
- *
- * Subsequent calls only parse the page and execute
- * the compiled validation rules.
- */
 export class PageValidator {
     __destroy_into_raw() {
         const ptr = this.__wbg_ptr;
@@ -21,9 +12,6 @@ export class PageValidator {
         wasm.__wbg_pagevalidator_free(ptr, 0);
     }
     /**
-     * Creates a compiled validator from a schema JSON.
-     *
-     * Schema parsing and regex compilation happen once.
      * @param {string} schema_json
      */
     constructor(schema_json) {
@@ -38,19 +26,16 @@ export class PageValidator {
         return this;
     }
     /**
-     * Validates a page using the compiled schema.
-     *
-     * The page is parsed on every call.
      * @param {string} page_json
      * @returns {string}
      */
-    validate(page_json) {
+    validate_data(page_json) {
         let deferred3_0;
         let deferred3_1;
         try {
             const ptr0 = passStringToWasm0(page_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
             const len0 = WASM_VECTOR_LEN;
-            const ret = wasm.pagevalidator_validate(this.__wbg_ptr, ptr0, len0);
+            const ret = wasm.pagevalidator_validate_data(this.__wbg_ptr, ptr0, len0);
             var ptr2 = ret[0];
             var len2 = ret[1];
             if (ret[3]) {
@@ -64,40 +49,22 @@ export class PageValidator {
             wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
         }
     }
-}
-if (Symbol.dispose) PageValidator.prototype[Symbol.dispose] = PageValidator.prototype.free;
-
-/**
- * Baseline WASM API.
- *
- * Compiles the schema and parses the page on every call.
- * Kept intentionally for benchmark comparison.
- * @param {string} schema_json
- * @param {string} page_json
- * @returns {string}
- */
-export function validate_page(schema_json, page_json) {
-    let deferred4_0;
-    let deferred4_1;
-    try {
-        const ptr0 = passStringToWasm0(schema_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    /**
+     * @param {string} page_json
+     * @param {number} iterations
+     * @returns {boolean}
+     */
+    validate_many(page_json, iterations) {
+        const ptr0 = passStringToWasm0(page_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        const ptr1 = passStringToWasm0(page_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len1 = WASM_VECTOR_LEN;
-        const ret = wasm.validate_page(ptr0, len0, ptr1, len1);
-        var ptr3 = ret[0];
-        var len3 = ret[1];
-        if (ret[3]) {
-            ptr3 = 0; len3 = 0;
-            throw takeFromExternrefTable0(ret[2]);
+        const ret = wasm.pagevalidator_validate_many(this.__wbg_ptr, ptr0, len0, iterations);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
         }
-        deferred4_0 = ptr3;
-        deferred4_1 = len3;
-        return getStringFromWasm0(ptr3, len3);
-    } finally {
-        wasm.__wbindgen_free(deferred4_0, deferred4_1, 1);
+        return ret[0] !== 0;
     }
 }
+if (Symbol.dispose) PageValidator.prototype[Symbol.dispose] = PageValidator.prototype.free;
 function __wbg_get_imports() {
     const import0 = {
         __proto__: null,

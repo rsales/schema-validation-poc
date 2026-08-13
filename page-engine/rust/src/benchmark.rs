@@ -1,36 +1,27 @@
 use std::fs;
-use std::path::PathBuf;
 
 use page_engine::{
     validate_page,
     validate_page_compiled,
-    CompiledSchema,
     ComponentSchema,
+    CompiledSchema,
     PageNode,
 };
 
 const ITERATIONS: usize = 100_000;
 
-fn project_path(relative_path: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("..")
-        .join(relative_path)
-}
-
 fn main() {
-    let schema_path =
-        project_path("schema/component-schema.json");
-
-    let page_path =
-        project_path("fixtures/page-small.json");
-
     let schema_json =
-        fs::read_to_string(&schema_path)
-            .expect("failed to read schema");
+        fs::read_to_string(
+            "page-engine/schema/component-schema.json",
+        )
+        .expect("failed to read schema");
 
     let page_json =
-        fs::read_to_string(&page_path)
-            .expect("failed to read page");
+        fs::read_to_string(
+            "page-engine/fixtures/page-small.json",
+        )
+        .expect("failed to read page");
 
     let schema: ComponentSchema =
         serde_json::from_str(&schema_json)
@@ -53,6 +44,20 @@ fn main() {
         &page,
         &compiled_schema,
     );
+
+    benchmark_parse(
+        &page_json,
+    );
+
+    benchmark_validation(
+        &page,
+        &compiled_schema,
+    );
+
+    benchmark_serialize(
+        &page,
+        &compiled_schema,
+    );
 }
 
 fn benchmark_baseline(
@@ -60,9 +65,11 @@ fn benchmark_baseline(
     schema: &ComponentSchema,
 ) {
     for _ in 0..10_000 {
-        validate_page(
-            page,
-            schema,
+        std::hint::black_box(
+            validate_page(
+                page,
+                schema,
+            ),
         );
     }
 
@@ -70,43 +77,17 @@ fn benchmark_baseline(
         std::time::Instant::now();
 
     for _ in 0..ITERATIONS {
-        validate_page(
-            page,
-            schema,
+        std::hint::black_box(
+            validate_page(
+                page,
+                schema,
+            ),
         );
     }
 
-    let elapsed =
-        start.elapsed();
-
-    let total_ms =
-        elapsed.as_secs_f64() * 1000.0;
-
-    let avg_ms =
-        total_ms / ITERATIONS as f64;
-
-    let throughput =
-        ITERATIONS as f64
-            / elapsed.as_secs_f64();
-
-    println!();
-    println!("Native Rust - baseline");
-    println!("-------------------------");
-    println!(
-        "iterations: {}",
-        ITERATIONS
-    );
-    println!(
-        "total:      {:.2} ms",
-        total_ms
-    );
-    println!(
-        "avg:        {:.6} ms",
-        avg_ms
-    );
-    println!(
-        "throughput: {:.0} validations/sec",
-        throughput
+    print_result(
+        "Native Rust - baseline",
+        start.elapsed(),
     );
 }
 
@@ -115,9 +96,11 @@ fn benchmark_compiled(
     schema: &CompiledSchema,
 ) {
     for _ in 0..10_000 {
-        validate_page_compiled(
-            page,
-            schema,
+        std::hint::black_box(
+            validate_page_compiled(
+                page,
+                schema,
+            ),
         );
     }
 
@@ -125,15 +108,126 @@ fn benchmark_compiled(
         std::time::Instant::now();
 
     for _ in 0..ITERATIONS {
-        validate_page_compiled(
-            page,
-            schema,
+        std::hint::black_box(
+            validate_page_compiled(
+                page,
+                schema,
+            ),
         );
     }
 
-    let elapsed =
-        start.elapsed();
+    print_result(
+        "Native Rust - compiled",
+        start.elapsed(),
+    );
+}
 
+fn benchmark_parse(
+    page_json: &str,
+) {
+    for _ in 0..10_000 {
+        let page: PageNode =
+            serde_json::from_str(page_json)
+                .expect("failed to parse page");
+
+        std::hint::black_box(page);
+    }
+
+    let start =
+        std::time::Instant::now();
+
+    for _ in 0..ITERATIONS {
+        let page: PageNode =
+            serde_json::from_str(page_json)
+                .expect("failed to parse page");
+
+        std::hint::black_box(page);
+    }
+
+    print_result(
+        "Native Rust - JSON parse",
+        start.elapsed(),
+    );
+}
+
+fn benchmark_validation(
+    page: &PageNode,
+    schema: &CompiledSchema,
+) {
+    for _ in 0..10_000 {
+        std::hint::black_box(
+            validate_page_compiled(
+                page,
+                schema,
+            ),
+        );
+    }
+
+    let start =
+        std::time::Instant::now();
+
+    for _ in 0..ITERATIONS {
+        std::hint::black_box(
+            validate_page_compiled(
+                page,
+                schema,
+            ),
+        );
+    }
+
+    print_result(
+        "Native Rust - validation only",
+        start.elapsed(),
+    );
+}
+
+fn benchmark_serialize(
+    page: &PageNode,
+    schema: &CompiledSchema,
+) {
+    for _ in 0..10_000 {
+        let result =
+            validate_page_compiled(
+                page,
+                schema,
+            );
+
+        std::hint::black_box(
+            serde_json::to_string(&result)
+                .expect(
+                    "failed to serialize result",
+                ),
+        );
+    }
+
+    let start =
+        std::time::Instant::now();
+
+    for _ in 0..ITERATIONS {
+        let result =
+            validate_page_compiled(
+                page,
+                schema,
+            );
+
+        std::hint::black_box(
+            serde_json::to_string(&result)
+                .expect(
+                    "failed to serialize result",
+                ),
+        );
+    }
+
+    print_result(
+        "Native Rust - validation + JSON serialize",
+        start.elapsed(),
+    );
+}
+
+fn print_result(
+    name: &str,
+    elapsed: std::time::Duration,
+) {
     let total_ms =
         elapsed.as_secs_f64() * 1000.0;
 
@@ -141,26 +235,22 @@ fn benchmark_compiled(
         total_ms / ITERATIONS as f64;
 
     let throughput =
-        ITERATIONS as f64
-            / elapsed.as_secs_f64();
+        ITERATIONS as f64 /
+        elapsed.as_secs_f64();
 
     println!();
-    println!("Native Rust - compiled");
-    println!("-------------------------");
+    println!("{name}");
+    println!("{}", "-".repeat(name.len()));
     println!(
-        "iterations: {}",
-        ITERATIONS
+        "iterations: {ITERATIONS}"
     );
     println!(
-        "total:      {:.2} ms",
-        total_ms
+        "total:      {total_ms:.2} ms"
     );
     println!(
-        "avg:        {:.6} ms",
-        avg_ms
+        "avg:        {avg_ms:.6} ms"
     );
     println!(
-        "throughput: {:.0} validations/sec",
-        throughput
+        "throughput: {throughput:.0} validations/sec"
     );
 }
