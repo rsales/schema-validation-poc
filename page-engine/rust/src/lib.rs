@@ -1,10 +1,11 @@
 pub mod change;
-pub mod compiled;
 pub mod change_resolver;
+pub mod compiled;
+pub mod incremental;
 pub mod path;
+pub mod scope;
 pub mod types;
 pub mod validator;
-pub mod scope;
 
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;
