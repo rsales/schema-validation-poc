@@ -9,10 +9,7 @@ pub mod scope;
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;
 
-pub use change::{
-    ChangeType,
-    PageChange,
-};
+pub use change::PageChange;
 
 pub use compiled::{
     CompiledComponentDefinition,

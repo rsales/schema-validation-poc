@@ -1,57 +1,57 @@
 use crate::path::NodePath;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ChangeType {
-    FieldChanged,
-    NodeAdded,
-    NodeRemoved,
-    NodeMoved,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PageChange {
-    pub path: NodePath,
-    pub change_type: ChangeType,
+pub enum PageChange {
+    FieldChanged {
+        path: NodePath,
+    },
+
+    NodeAdded {
+        path: NodePath,
+    },
+
+    NodeRemoved {
+        path: NodePath,
+    },
+
+    NodeMoved {
+        from: NodePath,
+        to: NodePath,
+    },
 }
 
 impl PageChange {
     pub fn field_changed(
         path: NodePath,
     ) -> Self {
-        Self {
+        Self::FieldChanged {
             path,
-            change_type:
-                ChangeType::FieldChanged,
         }
     }
 
     pub fn node_added(
         path: NodePath,
     ) -> Self {
-        Self {
+        Self::NodeAdded {
             path,
-            change_type:
-                ChangeType::NodeAdded,
         }
     }
 
     pub fn node_removed(
         path: NodePath,
     ) -> Self {
-        Self {
+        Self::NodeRemoved {
             path,
-            change_type:
-                ChangeType::NodeRemoved,
         }
     }
 
     pub fn node_moved(
-        path: NodePath,
+        from: NodePath,
+        to: NodePath,
     ) -> Self {
-        Self {
-            path,
-            change_type:
-                ChangeType::NodeMoved,
+        Self::NodeMoved {
+            from,
+            to,
         }
     }
 }

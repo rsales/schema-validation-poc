@@ -1,5 +1,4 @@
 use crate::{
-    ChangeType,
     NodePath,
     PageChange,
 };
@@ -7,46 +6,57 @@ use crate::{
 pub fn affected_paths(
     change: &PageChange,
 ) -> Vec<NodePath> {
-    match change.change_type {
-        ChangeType::FieldChanged => {
-            vec![
-                change.path.clone(),
-            ]
+    match change {
+        PageChange::FieldChanged { path } => {
+            vec![path.clone()]
         }
 
-        ChangeType::NodeAdded => {
-            vec![
-                change.path.clone(),
-                change
-                    .path
-                    .parent()
-                    .expect(
-                        "added node must have a parent",
-                    ),
-            ]
+        PageChange::NodeAdded { path } => {
+            let mut paths =
+                vec![path.clone()];
+
+            if let Some(parent) =
+                path.parent()
+            {
+                paths.push(parent);
+            }
+
+            paths
         }
 
-        ChangeType::NodeRemoved => {
-            vec![
-                change
-                    .path
-                    .parent()
-                    .expect(
-                        "removed node must have a parent",
-                    ),
-            ]
+        PageChange::NodeRemoved { path } => {
+            let mut paths =
+                Vec::new();
+
+            if let Some(parent) =
+                path.parent()
+            {
+                paths.push(parent);
+            }
+
+            paths
         }
 
-        ChangeType::NodeMoved => {
-            vec![
-                change.path.clone(),
-                change
-                    .path
-                    .parent()
-                    .expect(
-                        "moved node must have a parent",
-                    ),
-            ]
+        PageChange::NodeMoved { from, to } => {
+            let mut paths =
+                vec![
+                    from.clone(),
+                    to.clone(),
+                ];
+
+            if let Some(parent) =
+                from.parent()
+            {
+                paths.push(parent);
+            }
+
+            if let Some(parent) =
+                to.parent()
+            {
+                paths.push(parent);
+            }
+
+            paths
         }
     }
 }
@@ -131,11 +141,14 @@ mod tests {
     }
 
     #[test]
-    fn node_moved_affects_node_and_parent() {
+    fn node_moved_affects_old_and_new_locations() {
         let change =
             PageChange::node_moved(
                 NodePath::from_indexes(
                     vec![1, 1, 3],
+                ),
+                NodePath::from_indexes(
+                    vec![2, 0, 1],
                 ),
             );
 
@@ -151,7 +164,13 @@ mod tests {
                     vec![1, 1, 3],
                 ),
                 NodePath::from_indexes(
+                    vec![2, 0, 1],
+                ),
+                NodePath::from_indexes(
                     vec![1, 1],
+                ),
+                NodePath::from_indexes(
+                    vec![2, 0],
                 ),
             ],
         );

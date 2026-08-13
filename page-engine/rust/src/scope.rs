@@ -1,5 +1,4 @@
 use crate::{
-    ChangeType,
     ComponentSchema,
     NodePath,
     PageChange,
@@ -11,22 +10,18 @@ pub fn affected_scope(
     schema: &ComponentSchema,
     change: &PageChange,
 ) -> Vec<NodePath> {
-    match change.change_type {
-        ChangeType::FieldChanged => {
-            vec![
-                change.path.clone(),
-            ]
+    match change {
+        PageChange::FieldChanged { path } => {
+            vec![path.clone()]
         }
 
-        ChangeType::NodeAdded => {
-            let Some(parent) =
-                change.path.parent()
-            else {
+        PageChange::NodeAdded { path } => {
+            let Some(parent) = path.parent() else {
                 return Vec::new();
             };
 
             let mut paths = vec![
-                change.path.clone(),
+                path.clone(),
             ];
 
             paths.extend(
@@ -40,10 +35,8 @@ pub fn affected_scope(
             paths
         }
 
-        ChangeType::NodeRemoved => {
-            let Some(parent) =
-                change.path.parent()
-            else {
+        PageChange::NodeRemoved { path } => {
+            let Some(parent) = path.parent() else {
                 return Vec::new();
             };
 
@@ -54,14 +47,29 @@ pub fn affected_scope(
             )
         }
 
-        ChangeType::NodeMoved => {
-            structural_scope(
-                page,
-                schema,
-                vec![
-                    change.path.clone(),
-                ],
-            )
+        PageChange::NodeMoved { from, to } => {
+            let mut paths = vec![
+                from.clone(),
+                to.clone(),
+            ];
+
+            let mut ancestors = Vec::new();
+
+            for path in [from, to] {
+                for ancestor in structural_ancestors(
+                    page,
+                    schema,
+                    path,
+                ) {
+                    if !ancestors.contains(&ancestor) {
+                        ancestors.push(ancestor);
+                    }
+                }
+            }
+
+            paths.extend(ancestors);
+
+            paths
         }
     }
 }
@@ -97,12 +105,15 @@ fn structural_ancestors(
         return Vec::new();
     }
 
-    let mut ancestors = Vec::new();
+    let mut ancestors =
+        Vec::new();
 
     let mut current =
         path.parent();
 
-    while let Some(parent) = current {
+    while let Some(parent) =
+        current
+    {
         if parent_has_structural_rules(
             page,
             schema,
@@ -125,18 +136,21 @@ fn structural_scope(
     schema: &ComponentSchema,
     paths: Vec<NodePath>,
 ) -> Vec<NodePath> {
-    let mut result = Vec::new();
+    let mut result =
+        Vec::new();
 
     for path in paths {
         if !result.contains(&path) {
             result.push(path.clone());
         }
 
-        for ancestor in structural_ancestors(
-            page,
-            schema,
-            &path,
-        ) {
+        for ancestor in
+            structural_ancestors(
+                page,
+                schema,
+                &path,
+            )
+        {
             if !result.contains(&ancestor) {
                 result.push(ancestor);
             }
@@ -188,7 +202,9 @@ mod tests {
             }
             "#,
         )
-        .expect("failed to parse test page")
+        .expect(
+            "failed to parse test page",
+        )
     }
 
     fn schema() -> ComponentSchema {
@@ -247,7 +263,9 @@ mod tests {
             }
             "#,
         )
-        .expect("failed to parse test schema")
+        .expect(
+            "failed to parse test schema",
+        )
     }
 
     #[test]
@@ -279,43 +297,43 @@ mod tests {
         );
     }
 
-		#[test]
-		fn node_added_affects_structural_ancestors() {
-				let page = page();
-				let schema = schema();
+    #[test]
+    fn node_added_affects_structural_ancestors() {
+        let page = page();
+        let schema = schema();
 
-				let change =
-						PageChange::node_added(
-								NodePath::from_indexes(
-										vec![0, 0, 1],
-								),
-						);
+        let change =
+            PageChange::node_added(
+                NodePath::from_indexes(
+                    vec![0, 0, 1],
+                ),
+            );
 
-				let paths =
-						affected_scope(
-								&page,
-								&schema,
-								&change,
-						);
+        let paths =
+            affected_scope(
+                &page,
+                &schema,
+                &change,
+            );
 
-				assert_eq!(
-						paths,
-						vec![
-								NodePath::from_indexes(
-										vec![0, 0, 1],
-								),
-								NodePath::from_indexes(
-										vec![0, 0],
-								),
-								NodePath::from_indexes(
-										vec![0],
-								),
-								NodePath::from_indexes(
-										vec![],
-								),
-						],
-				);
-		}
+        assert_eq!(
+            paths,
+            vec![
+                NodePath::from_indexes(
+                    vec![0, 0, 1],
+                ),
+                NodePath::from_indexes(
+                    vec![0, 0],
+                ),
+                NodePath::from_indexes(
+                    vec![0],
+                ),
+                NodePath::from_indexes(
+                    vec![],
+                ),
+            ],
+        );
+    }
 
     #[test]
     fn node_removed_affects_structural_parent() {
@@ -337,23 +355,23 @@ mod tests {
             );
 
         assert_eq!(
-						paths,
-						vec![
-								NodePath::from_indexes(
-										vec![0, 0],
-								),
-								NodePath::from_indexes(
-										vec![0],
-								),
-								NodePath::from_indexes(
-										vec![],
-								),
-						],
-				);
+            paths,
+            vec![
+                NodePath::from_indexes(
+                    vec![0, 0],
+                ),
+                NodePath::from_indexes(
+                    vec![0],
+                ),
+                NodePath::from_indexes(
+                    vec![],
+                ),
+            ],
+        );
     }
 
     #[test]
-    fn node_moved_affects_structural_parent() {
+    fn node_moved_affects_old_and_new_scope() {
         let page = page();
         let schema = schema();
 
@@ -361,6 +379,9 @@ mod tests {
             PageChange::node_moved(
                 NodePath::from_indexes(
                     vec![0, 0, 0],
+                ),
+                NodePath::from_indexes(
+                    vec![0, 0, 1],
                 ),
             );
 
@@ -372,136 +393,140 @@ mod tests {
             );
 
         assert_eq!(
-						paths,
-						vec![
-								NodePath::from_indexes(
-										vec![0, 0, 0],
-								),
-								NodePath::from_indexes(
-										vec![0, 0],
-								),
-								NodePath::from_indexes(
-										vec![0],
-								),
-								NodePath::from_indexes(
-										vec![],
-								),
-						],
-				);
+            paths,
+            vec![
+                NodePath::from_indexes(
+                    vec![0, 0, 0],
+                ),
+                NodePath::from_indexes(
+                    vec![0, 0, 1],
+                ),
+                NodePath::from_indexes(
+                    vec![0, 0],
+                ),
+                NodePath::from_indexes(
+                    vec![0],
+                ),
+                NodePath::from_indexes(
+                    vec![],
+                ),
+            ],
+        );
     }
 
-		#[test]
-		fn structural_ancestors_resolves_full_chain() {
-				let page = page();
-				let schema = schema();
+    #[test]
+    fn structural_ancestors_resolves_full_chain() {
+        let page = page();
+        let schema = schema();
 
-				let path =
-						NodePath::from_indexes(
-								vec![0, 0, 0],
-						);
+        let path =
+            NodePath::from_indexes(
+                vec![0, 0, 0],
+            );
 
-				let ancestors =
-						structural_ancestors(
-								&page,
-								&schema,
-								&path,
-						);
+        let ancestors =
+            structural_ancestors(
+                &page,
+                &schema,
+                &path,
+            );
 
-				assert_eq!(
-						ancestors,
-						vec![
-								NodePath::from_indexes(
-										vec![0, 0],
-								),
-								NodePath::from_indexes(
-										vec![0],
-								),
-								NodePath::from_indexes(
-										vec![],
-								),
-						],
-				);
-		}
+        assert_eq!(
+            ancestors,
+            vec![
+                NodePath::from_indexes(
+                    vec![0, 0],
+                ),
+                NodePath::from_indexes(
+                    vec![0],
+                ),
+                NodePath::from_indexes(
+                    vec![],
+                ),
+            ],
+        );
+    }
 
-		#[test]
-		fn structural_ancestors_stops_at_root() {
-				let page = page();
-				let schema = schema();
+    #[test]
+    fn structural_ancestors_stops_at_root() {
+        let page = page();
+        let schema = schema();
 
-				let path =
-						NodePath::from_indexes(
-								vec![],
-						);
+        let path =
+            NodePath::from_indexes(
+                vec![],
+            );
 
-				let ancestors =
-						structural_ancestors(
-								&page,
-								&schema,
-								&path,
-						);
+        let ancestors =
+            structural_ancestors(
+                &page,
+                &schema,
+                &path,
+            );
 
-				assert!(
-						ancestors.is_empty()
-				);
-		}
+        assert!(
+            ancestors.is_empty()
+        );
+    }
 
-		#[test]
-		fn structural_ancestors_returns_empty_for_invalid_path() {
-				let page = page();
-				let schema = schema();
+    #[test]
+    fn structural_ancestors_returns_empty_for_invalid_path() {
+        let page = page();
+        let schema = schema();
 
-				let path =
-						NodePath::from_indexes(
-								vec![99, 99],
-						);
+        let path =
+            NodePath::from_indexes(
+                vec![99, 99],
+            );
 
-				let ancestors =
-						structural_ancestors(
-								&page,
-								&schema,
-								&path,
-						);
+        let ancestors =
+            structural_ancestors(
+                &page,
+                &schema,
+                &path,
+            );
 
-				assert!(
-						ancestors.is_empty()
-				);
-		}
+        assert!(
+            ancestors.is_empty()
+        );
+    }
 
-		#[test]
-		fn structural_ancestors_skips_non_structural_ancestors() {
-				let page: PageNode =
-						serde_json::from_str(
-								r#"
-								{
-										"id": "root",
-										"type": "heading",
-										"fields": {
-												"text": "Root",
-												"level": 1
-										},
-										"children": []
-								}
-								"#,
-						)
-						.expect("failed to parse test page");
+    #[test]
+    fn structural_ancestors_skips_non_structural_ancestors() {
+        let page: PageNode =
+            serde_json::from_str(
+                r#"
+                {
+                    "id": "root",
+                    "type": "heading",
+                    "fields": {
+                        "text": "Root",
+                        "level": 1
+                    },
+                    "children": []
+                }
+                "#,
+            )
+            .expect(
+                "failed to parse test page",
+            );
 
-				let schema = schema();
+        let schema = schema();
 
-				let path =
-						NodePath::from_indexes(
-								vec![0],
-						);
+        let path =
+            NodePath::from_indexes(
+                vec![0],
+            );
 
-				let ancestors =
-						structural_ancestors(
-								&page,
-								&schema,
-								&path,
-						);
+        let ancestors =
+            structural_ancestors(
+                &page,
+                &schema,
+                &path,
+            );
 
-				assert!(
-						ancestors.is_empty()
-				);
-		}
+        assert!(
+            ancestors.is_empty()
+        );
+    }
 }
-
