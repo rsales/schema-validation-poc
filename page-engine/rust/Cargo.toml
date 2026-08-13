@@ -12,6 +12,10 @@ crate-type = ["cdylib", "rlib"]
 name = "page-engine-validator"
 path = "src/main.rs"
 
+[[bin]]
+name = "benchmark"
+path = "src/benchmark.rs"
+
 [dependencies]
 regex = "1"
 serde = { version = "1", features = ["derive"] }
