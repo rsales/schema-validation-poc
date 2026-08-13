@@ -1,10 +1,6 @@
 use std::io::{self, Read};
 
-use page_engine::{
-    validate_page,
-    ComponentSchema,
-    PageNode,
-};
+use page_engine::{ComponentSchema, PageNode, validate_page};
 
 #[derive(serde::Deserialize)]
 struct ValidationRequest {
@@ -20,18 +16,12 @@ fn main() {
         .expect("failed to read stdin");
 
     let request: ValidationRequest =
-        serde_json::from_str(&input)
-            .expect("invalid validation request");
+        serde_json::from_str(&input).expect("invalid validation request");
 
-    let result =
-        validate_page(
-            &request.page,
-            &request.schema,
-        );
+    let result = validate_page(&request.page, &request.schema);
 
     println!(
         "{}",
-        serde_json::to_string(&result)
-            .expect("failed to serialize validation result")
+        serde_json::to_string(&result).expect("failed to serialize validation result")
     );
 }

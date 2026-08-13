@@ -1,10 +1,7 @@
 use regex::Regex;
 use std::collections::HashMap;
 
-use crate::types::{
-    ComponentSchema,
-    FieldDefinition,
-};
+use crate::types::{ComponentSchema, FieldDefinition};
 
 pub struct CompiledFieldDefinition {
     pub field_type: String,
@@ -22,8 +19,7 @@ pub struct CompiledFieldDefinition {
 }
 
 pub struct CompiledComponentDefinition {
-    pub fields:
-        HashMap<String, CompiledFieldDefinition>,
+    pub fields: HashMap<String, CompiledFieldDefinition>,
 
     pub allowed_children: Vec<String>,
 
@@ -32,52 +28,34 @@ pub struct CompiledComponentDefinition {
 }
 
 pub struct CompiledSchema {
-    pub components:
-        HashMap<String, CompiledComponentDefinition>,
+    pub components: HashMap<String, CompiledComponentDefinition>,
 }
 
 impl CompiledSchema {
-    pub fn compile(
-        schema: &ComponentSchema,
-    ) -> Result<Self, String> {
+    pub fn compile(schema: &ComponentSchema) -> Result<Self, String> {
         let mut components = HashMap::new();
 
         for (name, component) in &schema.components {
             let mut fields = HashMap::new();
 
             for (field_name, definition) in &component.fields {
-                let field =
-                    compile_field(
-                        definition,
-                        name,
-                        field_name,
-                    )?;
+                let field = compile_field(definition, name, field_name)?;
 
-                fields.insert(
-                    field_name.clone(),
-                    field,
-                );
+                fields.insert(field_name.clone(), field);
             }
 
             components.insert(
                 name.clone(),
                 CompiledComponentDefinition {
                     fields,
-                    allowed_children:
-                        component
-                            .allowed_children
-                            .clone(),
-                    min_children:
-                        component.min_children,
-                    max_children:
-                        component.max_children,
+                    allowed_children: component.allowed_children.clone(),
+                    min_children: component.min_children,
+                    max_children: component.max_children,
                 },
             );
         }
 
-        Ok(Self {
-            components,
-        })
+        Ok(Self { components })
     }
 }
 
@@ -85,53 +63,34 @@ fn compile_field(
     definition: &FieldDefinition,
     component_name: &str,
     field_name: &str,
-) -> Result<
-    CompiledFieldDefinition,
-    String,
-> {
-    let pattern =
-        match &definition.pattern {
-            Some(pattern) => {
-                Some(
-                    Regex::new(pattern)
-                        .map_err(|error| {
-                            format!(
-                                "Invalid regex for component \
+) -> Result<CompiledFieldDefinition, String> {
+    let pattern = match &definition.pattern {
+        Some(pattern) => Some(Regex::new(pattern).map_err(|error| {
+            format!(
+                "Invalid regex for component \
                                  \"{component_name}\", field \
                                  \"{field_name}\": {error}"
-                            )
-                        })?,
-                )
-            }
+            )
+        })?),
 
-            None => None,
-        };
+        None => None,
+    };
 
-    Ok(
-        CompiledFieldDefinition {
-            field_type:
-                definition.field_type.clone(),
+    Ok(CompiledFieldDefinition {
+        field_type: definition.field_type.clone(),
 
-            required:
-                definition.required
-                    .unwrap_or(false),
+        required: definition.required.unwrap_or(false),
 
-            min_length:
-                definition.min_length,
+        min_length: definition.min_length,
 
-            max_length:
-                definition.max_length,
+        max_length: definition.max_length,
 
-            pattern,
+        pattern,
 
-            minimum:
-                definition.minimum,
+        minimum: definition.minimum,
 
-            maximum:
-                definition.maximum,
+        maximum: definition.maximum,
 
-            values:
-                definition.values.clone(),
-        },
-    )
+        values: definition.values.clone(),
+    })
 }
