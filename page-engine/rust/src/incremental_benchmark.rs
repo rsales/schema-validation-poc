@@ -1,20 +1,28 @@
 use page_engine::{
-    CompiledSchema, ComponentSchema, NodePath, PageChange, PageNode, validate_incremental,
-    validate_page_compiled,
+    CompiledSchema, ComponentSchema, NodePath, PageChange, PageNode, affected_scope, validate_at,
+    validate_incremental, validate_page_compiled,
 };
 
 use std::fs;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 const ITERATIONS: usize = 100_000;
 
 struct BenchmarkResult {
     name: &'static str,
+
     full_ms: f64,
     incremental_ms: f64,
+
+    scope_ms: f64,
+    validation_ms: f64,
+
     full_throughput: f64,
     incremental_throughput: f64,
+
     speedup: f64,
+
+    affected_paths: usize,
 }
 
 fn load_schema() -> ComponentSchema {
@@ -37,9 +45,6 @@ fn load_page() -> PageNode {
 }
 
 /// Resolve a mutable node from a NodePath.
-///
-/// NodePath currently exposes its indexes directly,
-/// but does not expose a mutable `get_mut` helper.
 fn get_node_mut<'a>(page: &'a mut PageNode, path: &NodePath) -> &'a mut PageNode {
     let mut current = page;
 
@@ -66,6 +71,10 @@ fn get_parent_mut<'a>(page: &'a mut PageNode, path: &NodePath) -> &'a mut PageNo
     current
 }
 
+fn duration_ms(duration: Duration) -> f64 {
+    duration.as_secs_f64() * 1000.0
+}
+
 fn benchmark_change(
     page: &PageNode,
     schema: &CompiledSchema,
@@ -73,15 +82,31 @@ fn benchmark_change(
     change: PageChange,
 ) -> BenchmarkResult {
     /*
+     * -------------------------------------------------
      * Warmup
+     * -------------------------------------------------
      */
 
     let _ = validate_page_compiled(page, schema);
-
     let _ = validate_incremental(page, schema, &change);
 
     /*
+     * -------------------------------------------------
+     * Resolve affected scope once
+     * -------------------------------------------------
+     *
+     * This gives us visibility into how many paths
+     * the incremental validator needs to validate.
+     */
+
+    let scope = affected_scope(page, schema, &change);
+
+    let affected_paths = scope.len();
+
+    /*
+     * -------------------------------------------------
      * Full validation
+     * -------------------------------------------------
      */
 
     let full_start = Instant::now();
@@ -95,7 +120,9 @@ fn benchmark_change(
     let full_elapsed = full_start.elapsed();
 
     /*
-     * Incremental validation
+     * -------------------------------------------------
+     * Incremental total
+     * -------------------------------------------------
      */
 
     let incremental_start = Instant::now();
@@ -108,34 +135,102 @@ fn benchmark_change(
 
     let incremental_elapsed = incremental_start.elapsed();
 
-    let full_seconds = full_elapsed.as_secs_f64();
+    /*
+     * -------------------------------------------------
+     * Scope resolution
+     * -------------------------------------------------
+     *
+     * Measure the cost of affected_scope() separately.
+     */
 
+    let scope_start = Instant::now();
+
+    for _ in 0..ITERATIONS {
+        let result = affected_scope(page, schema, &change);
+
+        std::hint::black_box(result);
+    }
+
+    let scope_elapsed = scope_start.elapsed();
+
+    /*
+     * -------------------------------------------------
+     * Validation only
+     * -------------------------------------------------
+     *
+     * Reuse the resolved scope so that this measurement
+     * excludes affected_scope().
+     */
+
+    let validation_start = Instant::now();
+
+    for _ in 0..ITERATIONS {
+        let mut errors = Vec::new();
+
+        for path in &scope {
+            let result = validate_at(page, schema, path);
+
+            errors.extend(result.errors);
+        }
+
+        std::hint::black_box(errors);
+    }
+
+    let validation_elapsed = validation_start.elapsed();
+
+    /*
+     * -------------------------------------------------
+     * Metrics
+     * -------------------------------------------------
+     */
+
+    let full_seconds = full_elapsed.as_secs_f64();
     let incremental_seconds = incremental_elapsed.as_secs_f64();
 
-    let full_ms = full_seconds * 1000.0;
+    let full_ms = duration_ms(full_elapsed);
+    let incremental_ms = duration_ms(incremental_elapsed);
 
-    let incremental_ms = incremental_seconds * 1000.0;
+    let scope_ms = duration_ms(scope_elapsed);
+    let validation_ms = duration_ms(validation_elapsed);
 
     let full_throughput = ITERATIONS as f64 / full_seconds;
-
     let incremental_throughput = ITERATIONS as f64 / incremental_seconds;
 
     let speedup = full_seconds / incremental_seconds;
 
     BenchmarkResult {
         name,
+
         full_ms,
         incremental_ms,
+
+        scope_ms,
+        validation_ms,
+
         full_throughput,
         incremental_throughput,
+
         speedup,
+
+        affected_paths,
+    }
+}
+
+fn print_scope(name: &str, page: &PageNode, schema: &CompiledSchema, change: &PageChange) {
+    let scope = affected_scope(page, schema, change);
+
+    println!();
+    println!("Affected scope - {}", name);
+    println!("---------------------------");
+
+    for path in scope {
+        println!("  {:#?}", path);
     }
 }
 
 fn main() {
-    println!("Page Engine - full vs incremental benchmark");
-
-    println!("=============================================");
+    println!("Page Engine - incremental validation profiling");
+    println!("==============================================");
 
     println!("iterations: {}", ITERATIONS);
 
@@ -147,15 +242,6 @@ fn main() {
      * -------------------------------------------------
      * 1. Field change
      * -------------------------------------------------
-     *
-     * Change the heading text.
-     *
-     * page
-     * └── hero
-     *     └── heading
-     *
-     * Only the heading itself should be
-     * inside the incremental scope.
      */
 
     let mut field_page = load_page();
@@ -173,17 +259,6 @@ fn main() {
      * -------------------------------------------------
      * 2. Node added
      * -------------------------------------------------
-     *
-     * Add a card to the grid.
-     *
-     * page
-     * └── section
-     *     └── grid
-     *         ├── card
-     *         └── new card
-     *
-     * The page must represent the state
-     * AFTER the node was added.
      */
 
     let mut node_added_page = load_page();
@@ -220,17 +295,6 @@ fn main() {
      * -------------------------------------------------
      * 3. Node removed
      * -------------------------------------------------
-     *
-     * Remove an existing card.
-     *
-     * page
-     * └── section
-     *     └── grid
-     *         ├── card <- removed
-     *         └── card
-     *
-     * The page must represent the state
-     * AFTER the node was removed.
      */
 
     let mut node_removed_page = load_page();
@@ -252,43 +316,16 @@ fn main() {
      * -------------------------------------------------
      * 4. Node moved
      * -------------------------------------------------
-     *
-     * Move one card inside the grid.
-     *
-     * Before:
-     *
-     * grid
-     * ├── card A
-     * ├── card B
-     * ├── card C
-     * └── ...
-     *
-     * After:
-     *
-     * grid
-     * ├── card B
-     * ├── card C
-     * ├── ...
-     * └── card A
      */
 
     let mut node_moved_page = load_page();
 
     let from = NodePath::from_indexes(vec![1, 1, 0]);
-
     let to = NodePath::from_indexes(vec![1, 1, 5]);
 
     let from_index = *from.indexes.last().expect("from path should not be empty");
 
     let to_index = *to.indexes.last().expect("to path should not be empty");
-
-    /*
-     * Both paths currently point to the
-     * same parent grid.
-     *
-     * Resolve the parent once and perform
-     * the move in the same children vector.
-     */
 
     let parent = get_parent_mut(&mut node_moved_page, &from);
 
@@ -297,6 +334,35 @@ fn main() {
     parent.children.insert(to_index, moved_node);
 
     let node_moved_change = PageChange::node_moved(from, to);
+
+    /*
+     * -------------------------------------------------
+     * Print affected scopes
+     * -------------------------------------------------
+     */
+
+    print_scope("field change", &field_page, &compiled, &field_change);
+
+    print_scope(
+        "node added",
+        &node_added_page,
+        &compiled,
+        &node_added_change,
+    );
+
+    print_scope(
+        "node removed",
+        &node_removed_page,
+        &compiled,
+        &node_removed_change,
+    );
+
+    print_scope(
+        "node moved",
+        &node_moved_page,
+        &compiled,
+        &node_moved_change,
+    );
 
     /*
      * -------------------------------------------------
@@ -316,27 +382,79 @@ fn main() {
         benchmark_change(&node_moved_page, &compiled, "node moved", node_moved_change),
     ];
 
+    /*
+     * -------------------------------------------------
+     * Main benchmark
+     * -------------------------------------------------
+     */
+
+    println!();
+    println!("Benchmark Results");
+    println!("=================");
+
     println!();
 
     println!(
-        "{:<16} {:>12} {:>20} {:>10}",
-        "Change", "Full", "Incremental", "Speedup",
+        "{:<16} {:>12} {:>14} {:>10} {:>10}",
+        "Change", "Full", "Incremental", "Speedup", "Paths"
     );
 
-    println!("------------------------------------------------------------");
+    println!("----------------------------------------------------------------");
 
     for result in &results {
         println!(
-            "{:<16} {:>9.2} ms {:>9.2} ms {:>10.2}x",
-            result.name, result.full_ms, result.incremental_ms, result.speedup,
+            "{:<16} {:>9.2} ms {:>9.2} ms {:>10.2}x {:>10}",
+            result.name,
+            result.full_ms,
+            result.incremental_ms,
+            result.speedup,
+            result.affected_paths,
         );
     }
 
+    /*
+     * -------------------------------------------------
+     * Incremental breakdown
+     * -------------------------------------------------
+     */
+
+    println!();
+    println!("Incremental Breakdown");
+    println!("=====================");
+
     println!();
 
-    println!("Throughput (validations/sec)");
+    println!(
+        "{:<16} {:>16} {:>16} {:>16} {:>12}",
+        "Change", "Scope", "Validation", "Total", "Paths",
+    );
 
-    println!("{:<16} {:>16} {:>20}", "Change", "Full", "Incremental",);
+    println!("--------------------------------------------------------------------------");
+
+    for result in &results {
+        println!(
+            "{:<16} {:>12.2} ms {:>12.2} ms {:>12.2} ms {:>12}",
+            result.name,
+            result.scope_ms,
+            result.validation_ms,
+            result.incremental_ms,
+            result.affected_paths,
+        );
+    }
+
+    /*
+     * -------------------------------------------------
+     * Throughput
+     * -------------------------------------------------
+     */
+
+    println!();
+    println!("Throughput (validations/sec)");
+    println!("============================");
+
+    println!();
+
+    println!("{:<16} {:>16} {:>20}", "Change", "Full", "Incremental");
 
     println!("------------------------------------------------------------");
 

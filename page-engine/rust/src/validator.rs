@@ -78,10 +78,7 @@ fn validate_fields(
                     errors.push(ValidationError {
                         path: field_path,
                         code: "REQUIRED".into(),
-                        message: format!(
-                            "Field \"{field_name}\" \
-                                 is required."
-                        ),
+                        message: format!("Field \"{field_name}\" is required."),
                     });
                 }
 
@@ -137,10 +134,7 @@ fn validate_string(
             errors.push(ValidationError {
                 path: path.into(),
                 code: "INVALID_TYPE".into(),
-                message: format!(
-                    "Field \"{field_name}\" \
-                         must be a string."
-                ),
+                message: format!("Field \"{field_name}\" must be a string."),
             });
 
             return;
@@ -152,11 +146,7 @@ fn validate_string(
             errors.push(ValidationError {
                 path: path.into(),
                 code: "MIN_LENGTH".into(),
-                message: format!(
-                    "Field \"{field_name}\" \
-                         must have at least \
-                         {min} characters."
-                ),
+                message: format!("Field \"{field_name}\" must have at least {min} characters."),
             });
         }
     }
@@ -166,11 +156,7 @@ fn validate_string(
             errors.push(ValidationError {
                 path: path.into(),
                 code: "MAX_LENGTH".into(),
-                message: format!(
-                    "Field \"{field_name}\" \
-                         must have at most \
-                         {max} characters."
-                ),
+                message: format!("Field \"{field_name}\" must have at most {max} characters."),
             });
         }
     }
@@ -185,11 +171,7 @@ fn validate_string(
             errors.push(ValidationError {
                 path: path.into(),
                 code: "PATTERN".into(),
-                message: format!(
-                    "Field \"{field_name}\" \
-                         does not match the \
-                         required pattern."
-                ),
+                message: format!("Field \"{field_name}\" does not match the required pattern."),
             });
         }
     }
@@ -209,10 +191,7 @@ fn validate_number(
             errors.push(ValidationError {
                 path: path.into(),
                 code: "INVALID_TYPE".into(),
-                message: format!(
-                    "Field \"{field_name}\" \
-                         must be a number."
-                ),
+                message: format!("Field \"{field_name}\" must be a number."),
             });
 
             return;
@@ -225,9 +204,7 @@ fn validate_number(
                 path: path.into(),
                 code: "MINIMUM".into(),
                 message: format!(
-                    "Field \"{field_name}\" \
-                         must be greater than \
-                         or equal to {minimum}."
+                    "Field \"{field_name}\" must be greater than or equal to {minimum}."
                 ),
             });
         }
@@ -238,11 +215,7 @@ fn validate_number(
             errors.push(ValidationError {
                 path: path.into(),
                 code: "MAXIMUM".into(),
-                message: format!(
-                    "Field \"{field_name}\" \
-                         must be less than \
-                         or equal to {maximum}."
-                ),
+                message: format!("Field \"{field_name}\" must be less than or equal to {maximum}."),
             });
         }
     }
@@ -262,10 +235,7 @@ fn validate_enum(
             errors.push(ValidationError {
                 path: path.into(),
                 code: "INVALID_TYPE".into(),
-                message: format!(
-                    "Field \"{field_name}\" \
-                         must be a string."
-                ),
+                message: format!("Field \"{field_name}\" must be a string."),
             });
 
             return;
@@ -278,8 +248,7 @@ fn validate_enum(
                 path: path.into(),
                 code: "INVALID_ENUM".into(),
                 message: format!(
-                    "Field \"{field_name}\" \
-                         must be one of: {}.",
+                    "Field \"{field_name}\" must be one of: {}.",
                     values.join(", ")
                 ),
             });
@@ -298,8 +267,7 @@ fn validate_children(
             path: path.into(),
             code: "MIN_CHILDREN".into(),
             message: format!(
-                "Component must have at least \
-                     {} children.",
+                "Component must have at least {} children.",
                 component.min_children
             ),
         });
@@ -310,8 +278,7 @@ fn validate_children(
             path: path.into(),
             code: "MAX_CHILDREN".into(),
             message: format!(
-                "Component must have at most \
-                     {} children.",
+                "Component must have at most {} children.",
                 component.max_children
             ),
         });
@@ -327,8 +294,7 @@ fn validate_children(
                 path: format!("{path}[{index}]"),
                 code: "CHILD_NOT_ALLOWED".into(),
                 message: format!(
-                    "Child component \"{}\" \
-                         is not allowed here.",
+                    "Child component \"{}\" is not allowed here.",
                     child.node_type
                 ),
             });
@@ -352,6 +318,26 @@ pub fn validate_page_compiled(page: &PageNode, schema: &CompiledSchema) -> Valid
         errors,
     }
 }
+
+/*
+ * --------------------------------------------------------------------------
+ * Incremental / targeted validation
+ * --------------------------------------------------------------------------
+ *
+ * Unlike validate_page_compiled(), this function intentionally validates
+ * only the requested node.
+ *
+ * This is important for incremental validation:
+ *
+ *     full validation
+ *         -> validates node + entire subtree
+ *
+ *     targeted validation
+ *         -> validates node + local structural constraints
+ *
+ * The caller is responsible for determining which nodes/scopes need to be
+ * revalidated.
+ */
 
 pub fn validate_at(page: &PageNode, schema: &CompiledSchema, path: &NodePath) -> ValidationResult {
     let mut errors = Vec::new();
@@ -377,7 +363,7 @@ pub fn validate_at(page: &PageNode, schema: &CompiledSchema, path: &NodePath) ->
         format!("{path}.children[{index}]")
     });
 
-    validate_compiled_node(node, schema, &json_path, &mut errors);
+    validate_compiled_node_local(node, schema, &json_path, &mut errors);
 
     ValidationResult {
         valid: errors.is_empty(),
@@ -385,6 +371,11 @@ pub fn validate_at(page: &PageNode, schema: &CompiledSchema, path: &NodePath) ->
     }
 }
 
+/*
+ * Full recursive validation.
+ *
+ * Used exclusively by validate_page_compiled().
+ */
 fn validate_compiled_node(
     node: &PageNode,
     schema: &CompiledSchema,
@@ -398,11 +389,7 @@ fn validate_compiled_node(
             errors.push(ValidationError {
                 path: format!("{path}.type"),
                 code: "UNKNOWN_COMPONENT".into(),
-                message: format!(
-                    "Unknown component type \
-                             \"{}\".",
-                    node.node_type
-                ),
+                message: format!("Unknown component type \"{}\".", node.node_type),
             });
 
             return;
@@ -423,6 +410,48 @@ fn validate_compiled_node(
     }
 }
 
+/*
+ * Local targeted validation.
+ *
+ * This validates:
+ *
+ * - component existence
+ * - fields of the target node
+ * - child count
+ * - allowed child component types
+ *
+ * It deliberately does NOT recursively validate the children.
+ */
+fn validate_compiled_node_local(
+    node: &PageNode,
+    schema: &CompiledSchema,
+    path: &str,
+    errors: &mut Vec<ValidationError>,
+) {
+    let component = match schema.components.get(&node.node_type) {
+        Some(component) => component,
+
+        None => {
+            errors.push(ValidationError {
+                path: format!("{path}.type"),
+                code: "UNKNOWN_COMPONENT".into(),
+                message: format!("Unknown component type \"{}\".", node.node_type),
+            });
+
+            return;
+        }
+    };
+
+    validate_compiled_fields(&node.fields, component, &format!("{path}.fields"), errors);
+
+    validate_compiled_children(
+        &node.children,
+        component,
+        &format!("{path}.children"),
+        errors,
+    );
+}
+
 fn validate_compiled_fields(
     fields: &HashMap<String, Value>,
     component: &CompiledComponentDefinition,
@@ -440,10 +469,7 @@ fn validate_compiled_fields(
                     errors.push(ValidationError {
                         path: field_path,
                         code: "REQUIRED".into(),
-                        message: format!(
-                            "Field \"{field_name}\" \
-                                 is required."
-                        ),
+                        message: format!("Field \"{field_name}\" is required."),
                     });
                 }
 
@@ -505,10 +531,7 @@ fn validate_compiled_string(
             errors.push(ValidationError {
                 path: path.into(),
                 code: "INVALID_TYPE".into(),
-                message: format!(
-                    "Field \"{field_name}\" \
-                         must be a string."
-                ),
+                message: format!("Field \"{field_name}\" must be a string."),
             });
 
             return;
@@ -520,11 +543,7 @@ fn validate_compiled_string(
             errors.push(ValidationError {
                 path: path.into(),
                 code: "MIN_LENGTH".into(),
-                message: format!(
-                    "Field \"{field_name}\" \
-                         must have at least \
-                         {min} characters."
-                ),
+                message: format!("Field \"{field_name}\" must have at least {min} characters."),
             });
         }
     }
@@ -534,11 +553,7 @@ fn validate_compiled_string(
             errors.push(ValidationError {
                 path: path.into(),
                 code: "MAX_LENGTH".into(),
-                message: format!(
-                    "Field \"{field_name}\" \
-                         must have at most \
-                         {max} characters."
-                ),
+                message: format!("Field \"{field_name}\" must have at most {max} characters."),
             });
         }
     }
@@ -548,11 +563,7 @@ fn validate_compiled_string(
             errors.push(ValidationError {
                 path: path.into(),
                 code: "PATTERN".into(),
-                message: format!(
-                    "Field \"{field_name}\" \
-                         does not match the \
-                         required pattern."
-                ),
+                message: format!("Field \"{field_name}\" does not match the required pattern."),
             });
         }
     }
@@ -572,10 +583,7 @@ fn validate_compiled_number(
             errors.push(ValidationError {
                 path: path.into(),
                 code: "INVALID_TYPE".into(),
-                message: format!(
-                    "Field \"{field_name}\" \
-                         must be a number."
-                ),
+                message: format!("Field \"{field_name}\" must be a number."),
             });
 
             return;
@@ -588,9 +596,7 @@ fn validate_compiled_number(
                 path: path.into(),
                 code: "MINIMUM".into(),
                 message: format!(
-                    "Field \"{field_name}\" \
-                         must be greater than \
-                         or equal to {minimum}."
+                    "Field \"{field_name}\" must be greater than or equal to {minimum}."
                 ),
             });
         }
@@ -601,11 +607,7 @@ fn validate_compiled_number(
             errors.push(ValidationError {
                 path: path.into(),
                 code: "MAXIMUM".into(),
-                message: format!(
-                    "Field \"{field_name}\" \
-                         must be less than \
-                         or equal to {maximum}."
-                ),
+                message: format!("Field \"{field_name}\" must be less than or equal to {maximum}."),
             });
         }
     }
@@ -625,10 +627,7 @@ fn validate_compiled_enum(
             errors.push(ValidationError {
                 path: path.into(),
                 code: "INVALID_TYPE".into(),
-                message: format!(
-                    "Field \"{field_name}\" \
-                         must be a string."
-                ),
+                message: format!("Field \"{field_name}\" must be a string."),
             });
 
             return;
@@ -641,8 +640,7 @@ fn validate_compiled_enum(
                 path: path.into(),
                 code: "INVALID_ENUM".into(),
                 message: format!(
-                    "Field \"{field_name}\" \
-                         must be one of: {}.",
+                    "Field \"{field_name}\" must be one of: {}.",
                     values.join(", ")
                 ),
             });
@@ -661,8 +659,7 @@ fn validate_compiled_children(
             path: path.into(),
             code: "MIN_CHILDREN".into(),
             message: format!(
-                "Component must have at least \
-                     {} children.",
+                "Component must have at least {} children.",
                 component.min_children
             ),
         });
@@ -673,8 +670,7 @@ fn validate_compiled_children(
             path: path.into(),
             code: "MAX_CHILDREN".into(),
             message: format!(
-                "Component must have at most \
-                     {} children.",
+                "Component must have at most {} children.",
                 component.max_children
             ),
         });
@@ -690,8 +686,7 @@ fn validate_compiled_children(
                 path: format!("{path}[{index}]"),
                 code: "CHILD_NOT_ALLOWED".into(),
                 message: format!(
-                    "Child component \"{}\" \
-                         is not allowed here.",
+                    "Child component \"{}\" is not allowed here.",
                     child.node_type
                 ),
             });
@@ -738,9 +733,9 @@ mod tests {
 
         let partial = validate_at(&page, &compiled, &path);
 
-        assert_eq!(partial.valid, full.valid,);
+        assert_eq!(partial.valid, full.valid);
 
-        assert_eq!(partial.errors.len(), full.errors.len(),);
+        assert_eq!(partial.errors.len(), full.errors.len());
     }
 
     #[test]
@@ -772,7 +767,7 @@ mod tests {
 
         assert!(!result.valid);
 
-        assert_eq!(result.errors[0].code, "INVALID_PATH",);
+        assert_eq!(result.errors[0].code, "INVALID_PATH");
     }
 
     #[test]
@@ -796,18 +791,18 @@ mod tests {
             .fields
             .insert("text".into(), serde_json::Value::String(String::new()));
 
-        let path = NodePath::from_indexes(vec![0]);
+        let path = NodePath::from_indexes(vec![0, 0]);
 
         let result = validate_at(&page, &compiled, &path);
 
         assert!(!result.valid, "subtree should be invalid");
 
-        assert_eq!(result.errors.len(), 1,);
+        assert_eq!(result.errors.len(), 1);
 
         let error = &result.errors[0];
 
-        assert_eq!(error.code, "MIN_LENGTH",);
+        assert_eq!(error.code, "MIN_LENGTH");
 
-        assert_eq!(error.path, "$.children[0].children[0].fields.text",);
+        assert_eq!(error.path, "$.children[0].children[0].fields.text");
     }
 }

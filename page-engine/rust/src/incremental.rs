@@ -51,6 +51,36 @@ mod tests {
         serde_json::from_str(&page).expect("failed to parse page")
     }
 
+    /// Resolve a mutable node from a NodePath.
+    ///
+    /// NodePath currently exposes its indexes directly,
+    /// but does not expose a mutable `get_mut` helper.
+    fn get_node_mut<'a>(page: &'a mut PageNode, path: &NodePath) -> &'a mut PageNode {
+        let mut current = page;
+
+        for &index in &path.indexes {
+            current = current.children.get_mut(index).expect("invalid node path");
+        }
+
+        current
+    }
+
+    /// Resolve the mutable parent of a node.
+    fn get_parent_mut<'a>(page: &'a mut PageNode, path: &NodePath) -> &'a mut PageNode {
+        assert!(!path.indexes.is_empty(), "root node does not have a parent");
+
+        let mut current = page;
+
+        for &index in &path.indexes[..path.indexes.len() - 1] {
+            current = current
+                .children
+                .get_mut(index)
+                .expect("invalid parent path");
+        }
+
+        current
+    }
+
     #[test]
     fn node_removed_detects_invalid_parent() {
         let schema = load_schema();
@@ -154,31 +184,36 @@ mod tests {
         let compiled = CompiledSchema::compile(&schema).expect("failed to compile schema");
 
         /*
-        	* Make the heading invalid.
-        	*
-        	* Original:
-        	*
-        	* $.children[0]
-        	*   .children[0]
-        	*   .fields.text
-        	*
-        	* The heading's `text` field has
-        	* minLength = 1.
-        	*/
-        page.children[0].children[0]
+         * Make the heading invalid.
+         *
+         * Original:
+         *
+         * $.children[0]
+         *   .children[0]
+         *   .fields.text
+         *
+         * The heading's `text` field has
+         * minLength = 1.
+         */
+
+        let heading_path = NodePath::from_indexes(vec![0, 0]);
+
+        get_node_mut(&mut page, &heading_path)
             .fields
             .insert("text".into(), serde_json::Value::String(String::new()));
 
-        let change = PageChange::field_changed(NodePath::from_indexes(vec![0, 0]));
+        let change = PageChange::field_changed(heading_path);
 
         /*
-        	* Full validation.
-        	*/
+         * Full validation.
+         */
+
         let full = crate::validate_page_compiled(&page, &compiled);
 
         /*
-        	* Incremental validation.
-        	*/
+         * Incremental validation.
+         */
+
         let incremental = validate_incremental(&page, &compiled, &change);
 
         assert!(!full.valid, "full validation should fail");
@@ -186,9 +221,185 @@ mod tests {
         assert!(!incremental.valid, "incremental validation should fail");
 
         /*
-        	* Both validations should report
-        	* the same validation error.
-        	*/
-        assert_eq!(incremental.errors, full.errors,);
+         * Both validations should report
+         * the same validation error.
+         */
+
+        assert_eq!(incremental.errors, full.errors);
+    }
+
+    #[test]
+    fn node_added_incremental_matches_full_validation() {
+        let schema = load_schema();
+
+        let mut page = load_page();
+
+        let compiled = CompiledSchema::compile(&schema).expect("failed to compile schema");
+
+        /*
+         * Add a node to a structural parent.
+         *
+         * page
+         * └── section
+         *     └── heading
+         *     └── new heading
+         *
+         * The page represents the state AFTER
+         * the node was added.
+         */
+
+        let new_path = NodePath::from_indexes(vec![0, 2]);
+
+        let new_heading = PageNode {
+            id: "benchmark-heading".into(),
+            node_type: "heading".into(),
+            fields: serde_json::json!({
+                "text": "New heading",
+                "level": 2
+            })
+            .as_object()
+            .unwrap()
+            .clone()
+            .into_iter()
+            .collect(),
+            children: vec![],
+        };
+
+        let parent = get_parent_mut(&mut page, &new_path);
+
+        parent.children.insert(2, new_heading);
+
+        let change = PageChange::node_added(new_path);
+
+        /*
+         * Full validation.
+         */
+
+        let full = crate::validate_page_compiled(&page, &compiled);
+
+        /*
+         * Incremental validation.
+         */
+
+        let incremental = validate_incremental(&page, &compiled, &change);
+
+        assert_eq!(
+            incremental.valid, full.valid,
+            "incremental and full validation should agree on validity"
+        );
+
+        assert_eq!(
+            incremental.errors, full.errors,
+            "incremental and full validation should report the same errors"
+        );
+    }
+
+    #[test]
+    fn node_removed_incremental_matches_full_validation() {
+        let schema = load_schema();
+
+        let mut page = load_page();
+
+        let compiled = CompiledSchema::compile(&schema).expect("failed to compile schema");
+
+        /*
+         * Remove an existing heading.
+         *
+         * The page represents the state AFTER
+         * the node was removed.
+         */
+
+        let removed_path = NodePath::from_indexes(vec![0, 0]);
+
+        let parent = get_parent_mut(&mut page, &removed_path);
+
+        parent.children.remove(0);
+
+        let change = PageChange::node_removed(removed_path);
+
+        /*
+         * Full validation.
+         */
+
+        let full = crate::validate_page_compiled(&page, &compiled);
+
+        /*
+         * Incremental validation.
+         */
+
+        let incremental = validate_incremental(&page, &compiled, &change);
+
+        assert_eq!(
+            incremental.valid, full.valid,
+            "incremental and full validation should agree on validity"
+        );
+
+        assert_eq!(
+            incremental.errors, full.errors,
+            "incremental and full validation should report the same errors"
+        );
+    }
+
+    #[test]
+    fn node_moved_incremental_matches_full_validation() {
+        let schema = load_schema();
+
+        let mut page = load_page();
+
+        let compiled = CompiledSchema::compile(&schema).expect("failed to compile schema");
+
+        /*
+         * Move an existing node inside the same parent.
+         *
+         * Before:
+         *
+         * section
+         * ├── heading A
+         * └── heading B
+         *
+         * After:
+         *
+         * section
+         * ├── heading B
+         * └── heading A
+         */
+
+        let from = NodePath::from_indexes(vec![0, 0]);
+
+        let to = NodePath::from_indexes(vec![0, 1]);
+
+        let from_index = *from.indexes.last().expect("from path should not be empty");
+
+        let to_index = *to.indexes.last().expect("to path should not be empty");
+
+        let parent = get_parent_mut(&mut page, &from);
+
+        let moved_node = parent.children.remove(from_index);
+
+        parent.children.insert(to_index, moved_node);
+
+        let change = PageChange::node_moved(from, to);
+
+        /*
+         * Full validation.
+         */
+
+        let full = crate::validate_page_compiled(&page, &compiled);
+
+        /*
+         * Incremental validation.
+         */
+
+        let incremental = validate_incremental(&page, &compiled, &change);
+
+        assert_eq!(
+            incremental.valid, full.valid,
+            "incremental and full validation should agree on validity"
+        );
+
+        assert_eq!(
+            incremental.errors, full.errors,
+            "incremental and full validation should report the same errors"
+        );
     }
 }
