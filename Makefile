@@ -1,9 +1,17 @@
+.PHONY: wasm-bindgen
 .PHONY: rust-benchmark
 .PHONY: rust-memory-benchmark
 .PHONY: ajv-memory-worker
 .PHONY: ajv-memory-benchmark
 .PHONY: wasm-memory-worker
 .PHONY: wasm-memory-benchmark
+
+wasm-bindgen:
+	cd schema-validation && wasm-bindgen \
+  rust/target/wasm32-unknown-unknown/release/schema_validator.wasm \
+  --out-dir rust/pkg \
+  --target experimental-nodejs-module \
+  --typescript
 
 rust-benchmark:
 	cd schema-validation && cargo run \
