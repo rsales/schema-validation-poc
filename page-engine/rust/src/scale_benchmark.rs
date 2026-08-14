@@ -62,7 +62,11 @@ fn print_result(name: &str, total_ns: u128) {
 }
 
 fn benchmark_page(name: &str, page: &PageNode, schema: &CompiledSchema, path: &NodePath) {
-    let nodes = count_nodes(page);
+    let total_nodes = count_nodes(page);
+
+    let target = path.get(page).expect("benchmark path should resolve");
+
+    let subtree_nodes = count_nodes(target);
 
     let full = benchmark_full(page, schema);
 
@@ -71,7 +75,10 @@ fn benchmark_page(name: &str, page: &PageNode, schema: &CompiledSchema, path: &N
     let speedup = full as f64 / subtree as f64;
 
     println!();
-    println!("{} ({} nodes)", name, nodes,);
+    println!(
+        "{} ({} nodes, {} subtree nodes)",
+        name, total_nodes, subtree_nodes
+    );
 
     println!("---------------------------------------------");
 
@@ -79,7 +86,7 @@ fn benchmark_page(name: &str, page: &PageNode, schema: &CompiledSchema, path: &N
 
     print_result("Subtree validation", subtree);
 
-    println!("Speedup: {:.2}x", speedup,);
+    println!("Speedup: {:.2}x", speedup);
 }
 
 fn main() {
