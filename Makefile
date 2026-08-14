@@ -6,26 +6,26 @@
 .PHONY: wasm-memory-benchmark
 
 rust-benchmark:
-	cargo run \
+	cd schema-validation && cargo run \
 		--manifest-path rust/Cargo.toml \
 		--release \
 		--bin benchmark
 
 rust-memory-benchmark:
-	cargo run \
+	cd schema-validation && cargo run \
 		--manifest-path rust/Cargo.toml \
 		--release \
 		--bin benchmark-memory
 
 ajv-memory-worker:
-	npx tsx src/benchmark-memory-worker.ts Small page-small.json 100 1
+	cd schema-validation && npx tsx src/benchmark-memory-worker.ts Small page-small.json 100 1
 
 ajv-memory-benchmark:
-	npx tsx src/benchmark-memory.ts
+	cd schema-validation && npx tsx src/benchmark-memory.ts
 
 wasm-memory-worker:
-	npx tsx src/benchmark-memory-wasm-worker.ts Small page-small.json 100 1
+	cd schema-validation && npx tsx src/benchmark-memory-wasm-worker.ts Small page-small.json 100 1
 
 wasm-memory-benchmark:
-	npx tsx src/benchmark-memory-wasm.ts
+	cd schema-validation && npx tsx src/benchmark-memory-wasm.ts
 
