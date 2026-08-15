@@ -39,8 +39,6 @@ const pageJson = readFileSync(
   'utf8',
 )
 
-const page = JSON.parse(pageJson)
-
 const wasmBytes = readFileSync(
   WASM_PATH,
 )
@@ -56,13 +54,13 @@ const validator =
 
 // Warm-up
 for (let i = 0; i < 10_000; i++) {
-  validator.validate_data(page)
+  validator.validate_data(pageJson)
 }
 
 const start = performance.now()
 
 for (let i = 0; i < ITERATIONS; i++) {
-  validator.validate_data(page)
+  validator.validate_data(pageJson)
 }
 
 const elapsed =
