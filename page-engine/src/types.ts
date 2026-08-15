@@ -1,4 +1,7 @@
-export type FieldType = 'string' | 'number' | 'enum'
+export type FieldType =
+  | 'string'
+  | 'number'
+  | 'enum'
 
 export interface FieldDefinition {
   type: FieldType
@@ -18,14 +21,20 @@ export interface FieldDefinition {
 }
 
 export interface ComponentDefinition {
-  fields: Record<string, FieldDefinition>
+  fields: Record<
+    string,
+    FieldDefinition
+  >
   allowedChildren: string[]
   minChildren: number
   maxChildren: number
 }
 
 export interface ComponentSchema {
-  components: Record<string, ComponentDefinition>
+  components: Record<
+    string,
+    ComponentDefinition
+  >
 }
 
 export interface PageNode {
@@ -45,3 +54,22 @@ export interface ValidationResult {
   valid: boolean
   errors: ValidationError[]
 }
+
+export type PageChange =
+  | {
+      type: 'field_changed'
+      path: number[]
+    }
+  | {
+      type: 'node_added'
+      path: number[]
+    }
+  | {
+      type: 'node_removed'
+      path: number[]
+    }
+  | {
+      type: 'node_moved'
+      from: number[]
+      to: number[]
+    }

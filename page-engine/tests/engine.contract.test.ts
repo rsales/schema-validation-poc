@@ -16,10 +16,7 @@ import type {
   ValidationResult,
 } from '../src/types'
 
-const ROOT = join(
-  process.cwd(),
-  'page-engine',
-)
+const ROOT = process.cwd()
 
 const SCHEMA_PATH = join(
   ROOT,

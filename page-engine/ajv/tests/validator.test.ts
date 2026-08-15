@@ -15,7 +15,7 @@ import type {
 
 const ROOT = resolve(
   import.meta.dirname,
-  '../../..',
+  '../..',
 )
 
 function loadJson<T>(relativePath: string): T {
@@ -29,7 +29,7 @@ function loadJson<T>(relativePath: string): T {
 
 function loadSchema(): ComponentSchema {
   return loadJson<ComponentSchema>(
-    'page-engine/schema/component-schema.json',
+    'schema/component-schema.json',
   )
 }
 
@@ -37,7 +37,7 @@ function loadPage(
   fixture: string,
 ): PageNode {
   return loadJson<PageNode>(
-    `page-engine/fixtures/${fixture}`,
+    `fixtures/${fixture}`,
   )
 }
 

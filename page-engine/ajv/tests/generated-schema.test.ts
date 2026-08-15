@@ -1,17 +1,24 @@
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
-import { resolve } from 'node:path'
-import { test, describe } from 'node:test'
+import {readFile} from 'node:fs/promises'
+import {resolve} from 'node:path'
+import {describe, test} from 'node:test'
 
 import Ajv2020 from 'ajv/dist/2020.js'
 
-const schemaPath = resolve(
-  'page-engine/schema/page.schema.json',
+const ROOT = resolve(
+  import.meta.dirname,
+  '../..',
+)
+
+const SCHEMA_PATH = resolve(
+  ROOT,
+  'schema',
+  'page.schema.json',
 )
 
 async function loadValidator() {
   const content = await readFile(
-    schemaPath,
+    SCHEMA_PATH,
     'utf8',
   )
 
@@ -138,7 +145,7 @@ describe('Generated Page Schema', () => {
           id: 'hero-1',
           type: 'hero',
           fields: {
-            title: 'Hi',
+            title: '',
             alignment: 'center',
           },
           children: [],

@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "tsx --test tests/*.test.ts",
+    "test": "tsx --test src/*.test.ts ajv/tests/*.test.ts tests/*.test.ts",
     "test:wasm": "npm run build:wasm && tsx --test tests/wasm.contract.test.ts",
     "build:wasm": "wasm-pack build rust --target web --out-dir ../wasm"
   },
@@ -12,5 +12,8 @@
     "@types/node": "^26.2.0",
     "tsx": "^4.23.12",
     "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "ajv": "^8.20.0"
   }
 }

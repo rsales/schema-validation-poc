@@ -16,6 +16,7 @@ export type {
   ComponentDefinition,
   ComponentSchema,
   FieldDefinition,
+  PageChange,
   PageNode,
   ValidationError,
   ValidationResult,
