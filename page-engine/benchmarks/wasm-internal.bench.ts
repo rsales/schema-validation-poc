@@ -4,7 +4,7 @@ import { resolve } from 'node:path'
 import {
   initSync,
   PageValidator,
-} from './wasm/page_engine.js'
+} from '../wasm/page_engine.js'
 
 const ROOT = resolve(
   import.meta.dirname,
@@ -25,6 +25,7 @@ const PAGE_PATH = resolve(
 
 const WASM_PATH = resolve(
   import.meta.dirname,
+  '..',
   'wasm',
   'page_engine_bg.wasm',
 )

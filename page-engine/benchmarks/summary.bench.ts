@@ -6,7 +6,7 @@ import Ajv2020 from 'ajv/dist/2020.js'
 import {
   initSync,
   PageValidator,
-} from './wasm/page_engine.js'
+} from '../wasm/page_engine.js'
 
 import {
   loadPage,
@@ -22,6 +22,7 @@ const ROOT = resolve(
 
 const WASM_PATH = resolve(
   import.meta.dirname,
+  '..',
   'wasm',
   'page_engine_bg.wasm',
 )
