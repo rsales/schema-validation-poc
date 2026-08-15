@@ -9,11 +9,6 @@
     "benchmark": "tsx src/benchmark.ts",
     "benchmark:wasm": "tsx src/benchmark-wasm.ts",
     "wasm:test": "tsx src/wasm-test.ts",
-    "test:page-engine": "tsx --test page-engine/tests/validator.test.ts",
-    "test:page-engine:ajv": "tsx --test page-engine/ajv/tests/validator.test.ts",
-    "test:page-engine:parity": "tsx --test page-engine/tests/parity.test.ts",
-    "page-engine:schema": "tsx page-engine/ajv/generate-schema.ts",
-    "test:page-engine:schema": "tsx --test page-engine/ajv/tests/generated-schema.test.ts",
     "build": "tsc"
   },
   "keywords": [],

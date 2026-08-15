@@ -5,7 +5,16 @@
   "type": "module",
   "scripts": {
     "test": "tsx --test src/*.test.ts ajv/tests/*.test.ts tests/*.test.ts",
+    "test:page-engine": "npm test",
+
     "test:wasm": "npm run build:wasm && tsx --test tests/wasm.contract.test.ts",
+
+    "test:page-engine:ajv": "tsx --test ajv/tests/validator.test.ts",
+    "test:page-engine:parity": "tsx --test tests/parity.test.ts",
+
+    "page-engine:schema": "tsx ajv/generate-schema.ts",
+    "test:page-engine:schema": "tsx --test ajv/tests/generated-schema.test.ts",
+
     "build:wasm": "wasm-pack build rust --target web --out-dir ../wasm"
   },
   "devDependencies": {
