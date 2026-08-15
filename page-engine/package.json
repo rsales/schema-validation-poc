@@ -14,6 +14,7 @@
 
     "page-engine:schema": "tsx ajv/generate-schema.ts",
     "test:page-engine:schema": "tsx --test ajv/tests/generated-schema.test.ts",
+    "test:wasm:incremental:parity": "tsx --test tests/wasm.incremental.parity.test.ts",
 
     "build:wasm": "wasm-pack build rust --target web --out-dir ../wasm"
   },
