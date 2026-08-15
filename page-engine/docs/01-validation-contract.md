@@ -2,22 +2,23 @@
 
 ## Status
 
-**Version:** 1.0  
+**Version:** 1.1  
 **Status:** Experimental / Reference Contract  
-**Scope:** `experiment/page-engine`
+**Scope:** `page-engine`
 
-This document defines the validation contract for the Page Engine experiment.
+This document defines the semantic validation contract for the Page Engine experiment.
 
-The purpose of this contract is to establish a single, deterministic set of validation rules that every implementation must follow.
+The purpose of this contract is to establish a deterministic set of validation rules that every validation implementation must follow.
 
-The implementations may differ internally, but they must produce equivalent validation results for the same page document and component schema.
+Implementations may differ internally, but they must produce equivalent semantic validation results for the same page document and component schema.
 
-The initial implementations planned for comparison are:
+Current implementations and validation paths include:
 
-- TypeScript reference implementation
-- AJV
-- Rust native
+- TypeScript / AJV reference validation
+- Rust native validation
 - Rust compiled to WebAssembly
+- Resident WASM validation
+- Incremental WASM validation
 
 ---
 
@@ -28,11 +29,13 @@ The Page Engine represents content as a hierarchical component tree.
 The validator must validate:
 
 1. Field-level constraints
-2. Structural constraints
+2. Component-level constraints
+3. Structural constraints
+4. Recursive child relationships
+5. Precise validation paths
+6. Deterministic validation results
 
-The validator must support deeply nested component trees so that the benchmark resembles a realistic Page Builder or Headless CMS workload.
-
-The benchmark must measure equivalent work across all implementations.
+The same validation contract must be usable by multiple runtimes so that correctness and performance can be compared independently.
 
 ---
 
@@ -79,7 +82,7 @@ Location:
 page-engine/schema/component-schema.json
 ```
 
-A component definition has:
+A component definition has the following conceptual structure:
 
 ```json
 {
@@ -92,17 +95,13 @@ A component definition has:
 
 The root `components` object acts as the component registry.
 
-If a node references a component type that does not exist in the registry, validation fails with:
-
-```text
-unknown_component
-```
+If a node references a component type that does not exist in the registry, validation fails.
 
 ---
 
 ## 4. Field Validation
 
-Supported field types:
+Supported field types are:
 
 ```text
 string
@@ -126,7 +125,7 @@ For example, if `button` does not define `color`, then:
 
 is invalid.
 
-Error code:
+Canonical error code:
 
 ```text
 unknown_field
@@ -146,7 +145,7 @@ A field with:
 
 must exist in `fields`.
 
-Error code:
+Canonical error code:
 
 ```text
 required
@@ -359,7 +358,9 @@ For every node:
 5. Recursively validate children
 ```
 
-Traversal strategy is an implementation detail. Validation semantics must remain equivalent.
+Traversal strategy is an implementation detail.
+
+Validation semantics must remain equivalent.
 
 ---
 
@@ -419,6 +420,8 @@ children[0].children[1].children[2].fields.url
 
 This allows a CMS or Page Builder to identify exactly which field caused the failure.
 
+For incremental validation, paths are also used to associate validation errors with the affected node or scope.
+
 ---
 
 ## 14. Canonical Error Codes
@@ -447,15 +450,13 @@ Implementations may expose additional internal information, but results must be 
 
 ## 15. Valid Fixture
 
-The current fixture:
+The canonical valid fixture is:
 
 ```text
 page-engine/fixtures/page-small.json
 ```
 
-represents a valid document.
-
-Its structure is:
+Its representative structure is:
 
 ```text
 Page
@@ -478,9 +479,9 @@ Expected result:
 
 ## 16. Invalid Fixtures
 
-The implementation should eventually include invalid fixtures covering the major rules.
+The canonical fixture suite currently contains one valid page and thirteen invalid scenarios.
 
-Examples:
+The invalid fixtures isolate the following primary validation rules:
 
 | Scenario | Expected code |
 |---|---|
@@ -497,6 +498,8 @@ Examples:
 | Invalid child type | `child_not_allowed` |
 | Too few children | `minChildren` |
 | Too many children | `maxChildren` |
+
+See [`02-fixtures.md`](./02-fixtures.md) for the complete fixture documentation.
 
 ---
 
@@ -545,7 +548,7 @@ Validator ready
    validate()       validate()
 ```
 
-The benchmark should not repeatedly parse or compile the component schema for every validation.
+The benchmark must not repeatedly parse or compile the component schema for every validation.
 
 Schema initialization cost should be measured separately when relevant.
 
@@ -584,28 +587,19 @@ WASM → JavaScript
 
 These costs must not accidentally be reported as pure validation performance.
 
----
+The current benchmark suite explicitly explores these boundaries through:
 
-## 20. Reference Implementation
+- compiled WASM validation
+- resident page validation
+- internal validation loops
+- staged parsing / validation / serialization
+- structured WASM API validation
 
-The first implementation should be a straightforward TypeScript validator.
-
-Its purpose is not to win the benchmark.
-
-Its purpose is to establish expected semantics.
-
-The reference implementation should prioritize:
-
-1. Correctness
-2. Readability
-3. Deterministic behavior
-4. Structured errors
-
-Once stable, other implementations can be compared against it.
+See [`03-benchmark-methodology.md`](./03-benchmark-methodology.md).
 
 ---
 
-## 21. Implementation Equivalence
+## 20. Implementation Equivalence
 
 Implementations are equivalent when they produce the same semantic result for the same input and component schema.
 
@@ -615,7 +609,7 @@ For example:
 Page + Component Schema
         │
         ▼
-TypeScript Reference
+AJV
         │
         ▼
 Validation Result
@@ -627,7 +621,7 @@ must be semantically equivalent to:
 Page + Component Schema
         │
         ▼
-AJV
+Rust
         │
         ▼
 Validation Result
@@ -649,58 +643,107 @@ Internal architecture may differ.
 
 Validation semantics must not.
 
----
-
-## 22. Future Extensions
-
-The following are intentionally outside V1:
-
-- Conditional fields
-- Cross-field validation
-- Cross-component references
-- Custom validation functions
-- Async validation
-- Localization
-- Schema inheritance
-- Component versioning
-- Draft / published state validation
-- Permissions
-- Dependency-based field visibility
-- Expression-based validation
-- Custom formats
-
-These may be introduced in later experiments.
+The current test suite verifies parity across the canonical fixtures for AJV, Rust, and WASM.
 
 ---
 
-## 23. V1 Definition of Done
+## 21. Incremental Validation Contract
 
-- [ ] Pages can be recursively validated.
-- [ ] Unknown components are rejected.
-- [ ] Unknown fields are rejected.
-- [ ] Required fields are validated.
-- [ ] String constraints are validated.
-- [ ] Number constraints are validated.
-- [ ] Boolean fields are validated.
-- [ ] Enum fields are validated.
-- [ ] Regex patterns are validated.
-- [ ] Allowed children are validated.
-- [ ] Minimum children are validated.
-- [ ] Maximum children are validated.
-- [ ] Validation paths are reported.
-- [ ] Canonical error codes are returned.
-- [ ] `page-small.json` passes.
-- [ ] Invalid fixtures exercise each validation rule.
-- [ ] The same contract can be implemented by TypeScript, AJV, Rust Native, and Rust/WASM.
+Incremental validation introduces a second concern: not only **whether** a page is valid, but **which part of the page must be revalidated after a change**.
+
+A change is represented conceptually as:
+
+```text
+PageChange
+    │
+    ▼
+Change Resolver
+    │
+    ▼
+Affected Scope
+    │
+    ▼
+Targeted Validation
+```
+
+### 21.1 Field changes
+
+A localized field change can often be validated at the changed node.
+
+```text
+Field change
+     │
+     ▼
+Changed node
+     │
+     ▼
+Targeted validation
+```
+
+### 21.2 Structural changes
+
+Adding, removing, or moving nodes can invalidate structural constraints on ancestors.
+
+A move can affect both the old and new locations.
+
+```text
+Node moved
+    │
+    ├── old location
+    │
+    └── new location
+```
+
+The change resolver therefore determines the affected scope before validation.
+
+### 21.3 Full vs incremental
+
+Incremental validation is not assumed to be faster.
+
+The current experiment demonstrates that localized field changes can benefit significantly, while structural changes may incur enough scope-resolution and targeted-validation overhead to make full validation cheaper.
+
+The strategy itself is therefore part of the experiment.
 
 ---
 
-## 24. Guiding Principle
+## 22. Current Correctness Baseline
+
+The current JavaScript test suite reports:
+
+```text
+91 tests
+91 passed
+0 failed
+```
+
+The suite includes:
+
+- schema validation
+- Page model behavior
+- path resolution
+- change resolution
+- fixture validation
+- AJV parity
+- Rust parity
+- WASM parity
+- WASM incremental validation
+- resident validation parity
+- resident incremental validation parity
+
+The fixture set therefore functions as a cross-runtime semantic contract rather than only a TypeScript test suite.
+
+---
+
+## 23. Guiding Principle
 
 The objective of this experiment is not to prove that Rust or WebAssembly is faster.
 
-The objective is to determine whether a compiled validation engine provides a meaningful advantage for complex, deeply nested Page Builder and Headless CMS workloads.
+The objective is to determine:
 
-The benchmark must therefore compare equivalent work under controlled conditions.
+1. how much validation work a Page Builder actually needs to perform after a change;
+2. whether incremental validation can reduce that work;
+3. which runtime is appropriate for executing the validation core;
+4. whether interop and serialization costs change the practical result.
 
 **Performance is the result of the experiment, not an assumption.**
+

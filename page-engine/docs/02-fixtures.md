@@ -2,16 +2,17 @@
 
 ## Purpose
 
-The `page-engine/fixtures` directory defines the validation workloads used by the Page Engine validation experiment.
+The `page-engine/fixtures` directory defines the canonical validation workloads used by the Page Engine experiment.
 
-The fixtures are intentionally designed around realistic Page Builder rules instead of a minimal JSON Schema example. They provide a stable contract that can be executed by multiple validation engines:
+The fixtures are intentionally designed around realistic Page Builder and Headless CMS rules instead of a minimal JSON Schema example.
 
-- Reference Validator
-- AJV
+They provide a stable semantic contract that can be executed by multiple validation implementations:
+
+- AJV / JavaScript
 - Rust native
 - Rust/WASM
 
-The same fixtures should be reused by every implementation so that performance and correctness comparisons remain meaningful.
+The same fixtures should be reused by every implementation so that correctness and performance comparisons remain meaningful.
 
 ---
 
@@ -37,7 +38,7 @@ page-engine/
         └── unknown-field.json
 ```
 
-There are currently **14 test cases**:
+There are currently **14 canonical fixture cases**:
 
 - 1 valid page
 - 13 invalid pages
@@ -107,7 +108,7 @@ page
 ### Expected error
 
 ```text
-UNKNOWN_COMPONENT
+unknown_component
 ```
 
 ### Purpose
@@ -133,7 +134,7 @@ The `hero` component does not define a `debug` field.
 ### Expected error
 
 ```text
-UNKNOWN_FIELD
+unknown_field
 ```
 
 ### Purpose
@@ -159,7 +160,7 @@ is required but omitted.
 ### Expected error
 
 ```text
-REQUIRED
+required
 ```
 
 ### Purpose
@@ -189,7 +190,7 @@ type = string
 ### Expected error
 
 ```text
-TYPE
+type
 ```
 
 ### Purpose
@@ -223,7 +224,7 @@ justify
 ### Expected error
 
 ```text
-ENUM
+enum
 ```
 
 ### Purpose
@@ -251,7 +252,7 @@ The fixture uses a string shorter than five characters.
 ### Expected error
 
 ```text
-MIN_LENGTH
+minLength
 ```
 
 ### Purpose
@@ -279,7 +280,7 @@ The fixture contains a title longer than 80 characters.
 ### Expected error
 
 ```text
-MAX_LENGTH
+maxLength
 ```
 
 ### Purpose
@@ -300,7 +301,7 @@ The `section.fields.id` field uses:
 ^[a-z0-9-]+$
 ```
 
-The fixture contains an invalid value:
+The fixture contains an invalid value such as:
 
 ```text
 Invalid Section!
@@ -309,7 +310,7 @@ Invalid Section!
 ### Expected error
 
 ```text
-PATTERN
+pattern
 ```
 
 ### Purpose
@@ -349,7 +350,7 @@ The fixture uses:
 ### Expected error
 
 ```text
-MINIMUM
+minimum
 ```
 
 ### Purpose
@@ -381,7 +382,7 @@ The fixture uses:
 ### Expected error
 
 ```text
-MAXIMUM
+maximum
 ```
 
 ### Purpose
@@ -416,7 +417,7 @@ inside the hero.
 ### Expected error
 
 ```text
-CHILD_NOT_ALLOWED
+child_not_allowed
 ```
 
 ### Purpose
@@ -446,7 +447,7 @@ The fixture contains zero children.
 ### Expected error
 
 ```text
-MIN_CHILDREN
+minChildren
 ```
 
 ### Purpose
@@ -459,7 +460,7 @@ Tests lower child-count boundaries.
 
 ### Rule
 
-A component must not exceed the configured number of children.
+A component must not exceed the configured maximum number of children.
 
 `grid` allows:
 
@@ -474,7 +475,7 @@ The fixture contains 13 cards.
 ### Expected error
 
 ```text
-MAX_CHILDREN
+maxChildren
 ```
 
 ### Purpose
@@ -488,19 +489,19 @@ Tests upper child-count boundaries.
 | Fixture | Category | Rule | Expected Error |
 |---|---|---|---|
 | `page-small.json` | Valid | Complete valid page | — |
-| `unknown-component.json` | Component | Unknown component type | `UNKNOWN_COMPONENT` |
-| `unknown-field.json` | Component | Unknown field | `UNKNOWN_FIELD` |
-| `missing-required-field.json` | Field | Required field missing | `REQUIRED` |
-| `invalid-type.json` | Field | Invalid primitive type | `TYPE` |
-| `invalid-enum.json` | Field | Invalid enum value | `ENUM` |
-| `string-min-length.json` | String | Below minimum length | `MIN_LENGTH` |
-| `string-max-length.json` | String | Above maximum length | `MAX_LENGTH` |
-| `invalid-pattern.json` | String | Regex mismatch | `PATTERN` |
-| `number-minimum.json` | Number | Below minimum | `MINIMUM` |
-| `number-maximum.json` | Number | Above maximum | `MAXIMUM` |
-| `child-not-allowed.json` | Children | Invalid child type | `CHILD_NOT_ALLOWED` |
-| `min-children.json` | Children | Too few children | `MIN_CHILDREN` |
-| `max-children.json` | Children | Too many children | `MAX_CHILDREN` |
+| `unknown-component.json` | Component | Unknown component type | `unknown_component` |
+| `unknown-field.json` | Component | Unknown field | `unknown_field` |
+| `missing-required-field.json` | Field | Required field missing | `required` |
+| `invalid-type.json` | Field | Invalid primitive type | `type` |
+| `invalid-enum.json` | Field | Invalid enum value | `enum` |
+| `string-min-length.json` | String | Below minimum length | `minLength` |
+| `string-max-length.json` | String | Above maximum length | `maxLength` |
+| `invalid-pattern.json` | String | Regex mismatch | `pattern` |
+| `number-minimum.json` | Number | Below minimum | `minimum` |
+| `number-maximum.json` | Number | Above maximum | `maximum` |
+| `child-not-allowed.json` | Children | Invalid child type | `child_not_allowed` |
+| `min-children.json` | Children | Too few children | `minChildren` |
+| `max-children.json` | Children | Too many children | `maxChildren` |
 
 ---
 
@@ -535,7 +536,7 @@ Children
 └── maxChildren
 ```
 
-This gives us **13 independent invalidation paths** plus one valid baseline.
+This gives the experiment **13 independent invalidation paths** plus one valid baseline.
 
 ---
 
@@ -574,11 +575,11 @@ The combination of these rules is what makes the workload interesting for the pe
 
 ---
 
-# Contract Stability
+# Fixture Contract and Cross-Runtime Parity
 
-Once the fixture suite is established, it should be treated as a **frozen validation contract**.
+Once established, the fixture suite should be treated as a **canonical validation contract**.
 
-The following implementations must consume the same logical workload:
+The same logical fixtures are consumed by:
 
 ```text
                  Page Engine Contract
@@ -588,31 +589,118 @@ The following implementations must consume the same logical workload:
                          │
           ┌──────────────┼──────────────┐
           ▼              ▼              ▼
-      Reference          AJV        Rust/WASM
-      Validator
+          AJV           Rust        Rust/WASM
 ```
 
 A validator implementation should not modify the fixtures simply to make its own results pass.
 
 If two engines disagree, the difference should be investigated as an implementation or contract-mapping issue.
 
+The current test suite explicitly checks parity across these implementations.
+
 ---
 
-# Current Baseline
+# Correctness Baseline
 
-The Reference Validator currently passes:
+The current JavaScript test suite reports:
 
 ```text
-Tests: 14
-Passed: 14
-Failed: 0
+91 tests
+91 passed
+0 failed
 ```
 
-This establishes the first correctness baseline before introducing AJV and the Rust/WASM implementation.
+The fixture-related tests cover:
 
-The next experiment can therefore measure both:
+- direct validation
+- invalid fixture rejection
+- AJV parity
+- Rust parity
+- WASM parity
 
-1. **Correctness parity**
-2. **Validation performance**
+The fixtures therefore function as more than unit-test data: they are the shared semantic workload used to establish cross-runtime equivalence.
 
-using the same Page Builder workload.
+---
+
+# Relationship with Incremental Validation
+
+The fixtures primarily establish **validation correctness**.
+
+Incremental validation introduces a separate dimension:
+
+```text
+Page
+ │
+ ├── fixture
+ │
+ ▼
+Validation contract
+```
+
+versus:
+
+```text
+Page Change
+ │
+ ▼
+Change Resolver
+ │
+ ▼
+Affected Scope
+ │
+ ▼
+Validation contract
+```
+
+The same validation rules must apply regardless of whether the validator receives:
+
+- the entire page, or
+- an affected subset of the page.
+
+Therefore, fixture correctness is a prerequisite for meaningful incremental-validation benchmarks.
+
+---
+
+# Adding New Fixtures
+
+A new fixture should be added when it represents a validation rule that is:
+
+1. meaningful for Page Builder or Headless CMS content;
+2. deterministic;
+3. independently testable;
+4. required by the validation contract.
+
+When adding a fixture:
+
+1. Add the JSON file.
+2. Document the expected validation rule.
+3. Define the canonical error code.
+4. Add it to the validation matrix.
+5. Ensure all validation implementations produce equivalent semantics.
+6. Run the complete test suite.
+
+Avoid creating multiple fixtures that exercise exactly the same rule unless a new structural or semantic dimension is being tested.
+
+---
+
+# Guiding Principle
+
+The fixture suite is a **controlled experimental workload**.
+
+It should remain stable while implementation details evolve.
+
+When the benchmark changes, the workload should normally remain unchanged.
+
+When the validation contract changes, the fixture suite may need to evolve with it.
+
+This separation allows the experiment to distinguish:
+
+```text
+Contract change
+        vs
+Implementation change
+        vs
+Performance change
+```
+
+That distinction is essential for reliable conclusions.
