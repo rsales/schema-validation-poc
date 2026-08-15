@@ -3,7 +3,7 @@ use wasm_bindgen::prelude::*;
 use crate::change::PageChange;
 use crate::compiled::CompiledSchema;
 use crate::path::NodePath;
-use crate::types::{ComponentSchema, PageNode};
+use crate::types::{ComponentSchema, PageNode, ValidationResult};
 
 #[derive(serde::Deserialize)]
 #[serde(tag = "type")]
@@ -44,7 +44,7 @@ fn parse_change(change_json: &str) -> Result<PageChange, JsValue> {
     Ok(change.into_page_change())
 }
 
-fn serialize_validation_result(result: &crate::types::ValidationResult) -> Result<String, JsValue> {
+fn serialize_validation_result(result: &ValidationResult) -> Result<String, JsValue> {
     serde_json::to_string(result).map_err(|error| {
         JsValue::from_str(&format!("Failed to serialize validation result: {error}"))
     })
@@ -271,14 +271,44 @@ mod tests {
     }
 
     #[test]
-    fn rejects_invalid_change_json() {
+    fn parses_field_change() {
         let result = parse_change(
             r#"{
                 "type": "field_changed",
-                "path": "invalid"
+                "path": [0, 1, 2]
+            }"#,
+        );
+
+        assert!(result.is_ok());
+
+        assert_eq!(
+            result.unwrap(),
+            PageChange::field_changed(NodePath::from_indexes(vec![0, 1, 2]))
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_change_json() {
+        let result = parse_change(
+            r#"{
+                "type": "invalid",
+                "path": [0, 1]
             }"#,
         );
 
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn serializes_valid_validation_result() {
+        let result = ValidationResult {
+            valid: true,
+            errors: vec![],
+        };
+
+        let serialized =
+            serialize_validation_result(&result).expect("failed to serialize validation result");
+
+        assert_eq!(serialized, r#"{"valid":true,"errors":[]}"#);
     }
 }
