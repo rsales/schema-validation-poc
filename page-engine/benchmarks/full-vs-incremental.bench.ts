@@ -332,7 +332,7 @@ for (
    * ---------------------------------------------
    */
 
-  validator.validate_data(
+  validator.validate_json(
     pageJson,
   )
 
@@ -359,7 +359,7 @@ for (
     i++
   ) {
     fullResult =
-      validator.validate_data(
+      validator.validate_json(
         pageJson,
       )
   }

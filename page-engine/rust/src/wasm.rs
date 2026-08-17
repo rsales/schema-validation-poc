@@ -154,6 +154,36 @@ pub struct PageHandle {
 #[wasm_bindgen]
 impl PageValidator {
     // ---------------------------------------------------------
+    // Full validation from JSON
+    // ---------------------------------------------------------
+
+    #[wasm_bindgen]
+    pub fn validate_json(
+        &self,
+        page_json: &str,
+    ) -> Result<String, JsValue> {
+        let page: PageNode =
+            serde_json::from_str(page_json)
+                .map_err(|error| {
+                    JsValue::from_str(
+                        &format!(
+                            "Invalid page JSON: {error}"
+                        ),
+                    )
+                })?;
+
+        let result =
+            crate::validator::validate_page_compiled(
+                &page,
+                &self.schema,
+            );
+
+        serialize_validation_result(
+            &result,
+        )
+    }
+
+    // ---------------------------------------------------------
     // Constructor
     // ---------------------------------------------------------
 
