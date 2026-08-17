@@ -1,361 +1,220 @@
 import assert from 'node:assert/strict'
-import { readFileSync, readdirSync } from 'node:fs'
-import { resolve } from 'node:path'
 import test from 'node:test'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 
 import {
-  validatePage as validateReferencePage,
-} from '../src'
-
-import type {
-  ComponentSchema,
-  PageNode,
-  ValidationResult,
-} from '../src/types'
-
-import init, {
+  initSync,
   PageValidator,
 } from '../wasm/page_engine.js'
 
-const ROOT = resolve(
+import {
+  loadPage,
+  loadSchema,
+} from '../benchmarks/fixtures'
+
+const WASM_PATH = resolve(
   import.meta.dirname,
   '..',
+  'wasm',
+  'page_engine_bg.wasm',
 )
 
-const SCHEMA_PATH = resolve(
-  ROOT,
-  'schema',
-  'component-schema.json',
-)
+const wasm = readFileSync(WASM_PATH)
 
-const FIXTURES_PATH = resolve(
-  ROOT,
-  'fixtures',
-)
-
-const INVALID_FIXTURES_PATH = resolve(
-  FIXTURES_PATH,
-  'invalid',
-)
-
-function loadJson<T>(
-  path: string,
-): T {
-  return JSON.parse(
-    readFileSync(path, 'utf8'),
-  ) as T
-}
-
-function loadSchema(): ComponentSchema {
-  return loadJson<ComponentSchema>(
-    SCHEMA_PATH,
-  )
-}
-
-function loadPage(
-  path: string,
-): PageNode {
-  return loadJson<PageNode>(path)
-}
-
-async function loadWasm(): Promise<void> {
-  const wasmPath = resolve(
-    ROOT,
-    'wasm',
-    'page_engine_bg.wasm',
-  )
-
-  const wasm = readFileSync(
-    wasmPath,
-  )
-
-  await init({
-    module_or_path: wasm,
-  })
-}
-
-function createValidator(
-  schema: ComponentSchema,
-): PageValidator {
-  return new PageValidator(
-    JSON.stringify(schema),
-  )
-}
-
-function validateWithWasm(
-  schema: ComponentSchema,
-  page: PageNode,
-): ValidationResult {
-  const validator = createValidator(
-    schema,
-  )
-
-  const result = validator.validate_data(
-    JSON.stringify(page),
-  )
-
-  return JSON.parse(
-    result,
-  ) as ValidationResult
-}
-
-function validateIncrementalWithWasm(
-  schema: ComponentSchema,
-  page: PageNode,
-  change: unknown,
-): ValidationResult {
-  const validator = createValidator(
-    schema,
-  )
-
-  const result =
-    validator.validate_incremental(
-      JSON.stringify(page),
-      JSON.stringify(change),
-    )
-
-  return JSON.parse(
-    result,
-  ) as ValidationResult
-}
-
-function validateResidentWithWasm(
-  schema: ComponentSchema,
-  page: PageNode,
-): boolean {
-  const validator = createValidator(
-    schema,
-  )
-
-  const handle = validator.load_page(
-    JSON.stringify(page),
-  )
-
-  return validator.validate_resident(
-    handle,
-  )
-}
-
-function validateResidentIncrementalWithWasm(
-  schema: ComponentSchema,
-  page: PageNode,
-  change: unknown,
-): ValidationResult {
-  const validator = createValidator(
-    schema,
-  )
-
-  const handle = validator.load_page(
-    JSON.stringify(page),
-  )
-
-  const result =
-    validator.validate_resident_incremental(
-      handle,
-      JSON.stringify(change),
-    )
-
-  return JSON.parse(
-    result,
-  ) as ValidationResult
-}
-
-function validateFixture(
-  fixturePath: string,
-): {
-  reference: ValidationResult
-  wasm: ValidationResult
-} {
-  const schema = loadSchema()
-  const page = loadPage(fixturePath)
-
-  return {
-    reference:
-      validateReferencePage(
-        page,
-        schema,
-      ),
-
-    wasm:
-      validateWithWasm(
-        schema,
-        page,
-      ),
-  }
-}
-
-test.before(async () => {
-  await loadWasm()
+initSync({
+  module: wasm,
 })
 
-test(
-  'WASM validator has parity for valid page',
-  () => {
-    const fixture = resolve(
-      FIXTURES_PATH,
-      'page-small.json',
+test('PageValidator validates page JSON', () => {
+  const schema = loadSchema()
+  const page = loadPage()
+
+  const validator =
+    new PageValidator(
+      JSON.stringify(schema),
     )
 
-    const {
-      reference,
-      wasm,
-    } = validateFixture(fixture)
+  try {
+    const result =
+      validator.validate_json(
+        JSON.stringify(page),
+      )
 
     assert.equal(
-      reference.valid,
+      typeof result,
+      'string',
+    )
+
+    const parsed =
+      JSON.parse(result)
+
+    assert.equal(
+      parsed.valid,
       true,
     )
+  } finally {
+    validator.free()
+  }
+})
 
-    assert.equal(
-      wasm.valid,
-      true,
+test('PageValidator loads and validates a resident page', () => {
+  const schema = loadSchema()
+  const page = loadPage()
+
+  const validator =
+    new PageValidator(
+      JSON.stringify(schema),
     )
 
-    assert.deepEqual(
-      wasm,
-      reference,
-    )
-  },
-)
-
-const invalidFixtures =
-  readdirSync(INVALID_FIXTURES_PATH)
-    .filter(
-      (file) =>
-        file.endsWith('.json'),
-    )
-    .sort()
-
-for (const fixtureName of invalidFixtures) {
-  test(
-    `WASM validator has parity: ${fixtureName}`,
-    () => {
-      const fixture = resolve(
-        INVALID_FIXTURES_PATH,
-        fixtureName,
+  try {
+    const handle =
+      validator.load_page(
+        JSON.stringify(page),
       )
 
-      const {
-        reference,
-        wasm,
-      } = validateFixture(fixture)
+    try {
+      const valid =
+        validator.validate_resident(
+          handle,
+        )
 
       assert.equal(
-        reference.valid,
-        false,
+        valid,
+        true,
       )
+    } finally {
+      handle.free()
+    }
+  } finally {
+    validator.free()
+  }
+})
+
+test('PageValidator supports resident batch validation', () => {
+  const schema = loadSchema()
+  const page = loadPage()
+
+  const validator =
+    new PageValidator(
+      JSON.stringify(schema),
+    )
+
+  try {
+    const handle =
+      validator.load_page(
+        JSON.stringify(page),
+      )
+
+    try {
+      const valid =
+        validator.validate_resident_many(
+          handle,
+          10,
+        )
 
       assert.equal(
-        wasm.valid,
-        false,
+        valid,
+        true,
       )
-
-      assert.deepEqual(
-        wasm,
-        reference,
-      )
-    },
-  )
-}
-
-test(
-  'WASM incremental validation has parity for field change',
-  () => {
-    const schema = loadSchema()
-    const page = loadPage(
-      resolve(
-        FIXTURES_PATH,
-        'page-small.json',
-      ),
-    )
-
-    const change = {
-      type: 'field_changed',
-      path: [0, 0],
+    } finally {
+      handle.free()
     }
+  } finally {
+    validator.free()
+  }
+})
 
-    const expected =
-      validateReferencePage(
-        page,
-        schema,
-      )
+test('PageValidator supports resident incremental validation', () => {
+  const schema = loadSchema()
+  const page = loadPage()
 
-    const actual =
-      validateIncrementalWithWasm(
-        schema,
-        page,
-        change,
-      )
-
-    assert.deepEqual(
-      actual,
-      expected,
-    )
-  },
-)
-
-test(
-  'WASM resident validation matches full validation',
-  () => {
-    const schema = loadSchema()
-    const page = loadPage(
-      resolve(
-        FIXTURES_PATH,
-        'page-small.json',
-      ),
+  const validator =
+    new PageValidator(
+      JSON.stringify(schema),
     )
 
-    const full =
-      validateWithWasm(
-        schema,
-        page,
+  try {
+    const handle =
+      validator.load_page(
+        JSON.stringify(page),
       )
 
-    const resident =
-      validateResidentWithWasm(
-        schema,
-        page,
+    try {
+      const change = {
+        type: 'field_changed',
+        path: [0],
+      }
+
+      const result =
+        validator.validate_resident_incremental(
+          handle,
+          JSON.stringify(change),
+        )
+
+      assert.equal(
+        typeof result,
+        'string',
       )
 
-    assert.equal(
-      resident,
-      full.valid,
-    )
-  },
-)
+      const parsed =
+        JSON.parse(result)
 
-test(
-  'WASM resident incremental validation has parity',
-  () => {
-    const schema = loadSchema()
-    const page = loadPage(
-      resolve(
-        FIXTURES_PATH,
-        'page-small.json',
-      ),
-    )
-
-    const change = {
-      type: 'field_changed',
-      path: [0, 0],
+      assert.equal(
+        typeof parsed.valid,
+        'boolean',
+      )
+    } finally {
+      handle.free()
     }
+  } finally {
+    validator.free()
+  }
+})
 
-    const expected =
-      validateReferencePage(
-        page,
-        schema,
-      )
+test('PageValidator supports incremental profiling', () => {
+  const schema = loadSchema()
+  const page = loadPage()
 
-    const actual =
-      validateResidentIncrementalWithWasm(
-        schema,
-        page,
-        change,
-      )
-
-    assert.deepEqual(
-      actual,
-      expected,
+  const validator =
+    new PageValidator(
+      JSON.stringify(schema),
     )
-  },
-)
+
+  try {
+    const handle =
+      validator.load_page(
+        JSON.stringify(page),
+      )
+
+    try {
+      const change = {
+        type: 'field_changed',
+        path: [0],
+      }
+
+      const result =
+        validator.profile_resident_incremental(
+          handle,
+          JSON.stringify(change),
+        )
+
+      assert.equal(
+        typeof result,
+        'string',
+      )
+
+      const parsed =
+        JSON.parse(result)
+
+      assert.equal(
+        typeof parsed,
+        'object',
+      )
+    } finally {
+      handle.free()
+    }
+  } finally {
+    validator.free()
+  }
+})

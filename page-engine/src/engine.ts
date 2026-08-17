@@ -7,6 +7,14 @@ import type {
 
 import {validatePage} from './validator'
 
+import {
+  affectedScope,
+} from './incremental'
+
+import {
+  validateIncremental as validateIncrementalNodes,
+} from './incremental-validator'
+
 export interface ValidationEngine {
   validate(
     page: PageNode,
@@ -36,11 +44,18 @@ export class TypeScriptValidationEngine
   validateIncremental(
     page: PageNode,
     schema: ComponentSchema,
-    _change: PageChange,
+    change: PageChange,
   ): ValidationResult {
-    return this.validate(
+    const paths =
+      affectedScope(
+        page,
+        change,
+      )
+
+    return validateIncrementalNodes(
       page,
       schema,
+      paths,
     )
   }
 }
