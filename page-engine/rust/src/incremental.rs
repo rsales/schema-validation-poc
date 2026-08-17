@@ -1,5 +1,5 @@
 use crate::{
-    CompiledSchema, PageChange, PageNode, ValidationError, ValidationResult, affected_scope,
+    CompiledSchema, NodePath, PageChange, PageNode, ValidationError, ValidationResult, affected_scope,
     validate_at,
 };
 
@@ -8,14 +8,40 @@ pub fn validate_incremental(
     schema: &CompiledSchema,
     change: &PageChange,
 ) -> ValidationResult {
-    let scope = affected_scope(page, schema, change);
+    let scope =
+        affected_scope(
+            page,
+            schema,
+            change,
+        );
 
-    let mut errors: Vec<ValidationError> = Vec::new();
+    validate_incremental_scope(
+        page,
+        schema,
+        &scope,
+    )
+}
+
+pub fn validate_incremental_scope(
+    page: &PageNode,
+    schema: &CompiledSchema,
+    scope: &[NodePath],
+) -> ValidationResult {
+    let mut errors:
+        Vec<ValidationError> =
+        Vec::new();
 
     for path in scope {
-        let result = validate_at(page, schema, &path);
+        let result =
+            validate_at(
+                page,
+                schema,
+                path,
+            );
 
-        errors.extend(result.errors);
+        errors.extend(
+            result.errors,
+        );
     }
 
     ValidationResult {
